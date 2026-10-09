@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0B503D">
+    <meta name="description" content="牌河视觉档案：以十八张麻将牌收藏图像、文字与项目。点击一张牌，展开一段观察。">
+    <title>牌河视觉档案 · ShinRyu</title>
+    <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./app.js" type="module"></script>
+  </head>
+  <body>
+    <main id="viewport" aria-label="牌河视觉档案">
+      <div id="scene">
+        <div id="board" aria-label="麻将桌上的视觉档案" aria-busy="true">
+          <canvas id="table" width="1920" height="1080" aria-hidden="true"></canvas>
+          <header class="console" aria-label="档案导航">
+            <button id="works" class="mechanical works" type="button" aria-label="作品：揭示牌河或查看主图">
+              <span class="button-top"></span><span class="button-label">作品</span>
+            </button>
+            <button id="about" class="mechanical about" type="button" aria-label="关于：查看档案介绍">
+              <span class="button-top"></span><span class="button-label">关于</span>
+            </button>
+            <button id="contact" class="mechanical contact" type="button" aria-label="联系：查看联系说明">
+              <span class="button-top"></span><span class="button-label">联系</span>
+            </button>
+            <h1>牌河视觉档案</h1>
+            <p class="engraving">图像 · 文字 · 项目 / 点击任意一张牌展开</p>
+          </header>
+          <div id="tiles" role="group" aria-label="十八张牌，六列三行。点击任意一张揭示全部内容。"></div>
+        </div>
+        <div id="detail-overlay" hidden>
+          <section id="detail" role="dialog" aria-modal="true" aria-labelledby="detail-title" aria-describedby="detail-intro" tabindex="-1">
+            <button id="close-detail" type="button" aria-label="关闭详情"><span aria-hidden="true">×</span></button>
+            <div class="detail-scroll">
+              <p id="detail-label" class="eyebrow"></p>
+              <h2 id="detail-title"></h2>
+              <p id="detail-intro" class="intro"></p>
+              <div id="detail-body"></div>
+            </div>
+            <footer class="detail-footer"><span>SHINRYU / 视觉档案</span><span>ESC 或点击桌面关闭</span></footer>
+          </section>
+        </div>
+      </div>
+    </main>
+    <p id="status" class="sr-only" role="status" aria-live="polite">正在准备牌河。</p>
+    <noscript><div class="no-script">牌河视觉档案需要 JavaScript 展示翻牌交互。请启用 JavaScript 后刷新页面。<a href="https://github.com/5h1nRyu/ShinRyu">查看项目</a></div></noscript>
+  </body>
+</html>
