@@ -3,7 +3,6 @@ import { SPEC, smooth, center, rippleDelay, entryScale, flipPose, projection, sh
 const $ = (id) => document.getElementById(id);
 const scene = $('scene'), board = $('board'), canvas = $('table');
 const ctx = canvas.getContext('2d', { alpha: false });
-const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const FONT = '"Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif';
 const COLORS = { table: '#0B503D', back: '#2457B8', front: '#F4F0E6', core: '#CFCABB', shadow: '#05251B' };
 const UNIT_IDS = ['A', 'A', 'A', 'B', 'B', 'B', 'A', 'A', 'A', 'C', 'C', 'D', 'E', 'E', 'F', 'F', 'G', 'G'];
@@ -149,7 +148,6 @@ function resize() {
 function poseAt(tile, time) {
   if (tile.flip) return flipPose(time - tile.flip.start, tile.flip.from);
   const theta = phase === 'front' ? Math.PI : 0;
-  if (reducedMotion.matches) return { theta, q: 1, height: 0 };
   if (tile.tween) {
     const tween = tile.tween;
     const q = tween.from + (tween.to - tween.from) * smooth((time - tween.start) / tween.duration);
@@ -160,7 +158,7 @@ function poseAt(tile, time) {
 }
 
 function tweenTo(tile, target, duration) {
-  if (reducedMotion.matches || phase === 'revealing' || phase === 'entry' || phase === 'loading') return;
+  if (phase === 'revealing' || phase === 'entry' || phase === 'loading') return;
   const time = performance.now();
   const from = poseAt(tile, time).q;
   tile.tween = { from, to: target, duration, start: time };
@@ -207,7 +205,6 @@ function drawTileLayer(layer, time) {
 }
 
 function blurParameters(time) {
-  if (reducedMotion.matches) return { amount: 0, window: 0 };
   let amount = 0, shutter = 8.333;
   for (const tile of tiles) {
     const pose = poseAt(tile, time), previous = poseAt(tile, time - 1);
@@ -231,7 +228,7 @@ function render(time) {
   for (const tile of tiles) {
     if (tile.tween && time >= tile.tween.start + tile.tween.duration && tile.tween.to === 1) tile.tween = null;
   }
-  scene.style.opacity = reducedMotion.matches ? '1' : String(smooth((time - epoch) / 200));
+  scene.style.opacity = String(smooth((time - epoch) / 200));
   ctx.drawImage(background.element, 0, 0, 1920, 1080);
   // These three rectangles are rendered once at the current time, outside all sampling layers.
   ctx.fillStyle = COLORS.shadow;
@@ -383,7 +380,7 @@ function openDetail(unit, trigger) {
   $('detail').querySelector('.detail-scroll').scrollTop = 0;
   $('close-detail').focus();
   clearTimeout(dialogTimer);
-  dialogTimer = setTimeout(() => { if (!dialogClosing) overlay.className = ''; }, reducedMotion.matches ? 0 : 240);
+  dialogTimer = setTimeout(() => { if (!dialogClosing) overlay.className = ''; }, 240);
   requestRender();
 }
 
@@ -394,7 +391,7 @@ function closeDetail() {
     overlay.hidden = true; overlay.className = ''; board.inert = false; dialogClosing = false;
     if (lastTrigger?.isConnected) lastTrigger.focus({ preventScroll: true });
     requestRender();
-  }, reducedMotion.matches ? 0 : 180);
+  }, 180);
 }
 
 $('close-detail').addEventListener('click', closeDetail);
@@ -420,21 +417,13 @@ window.addEventListener('pointerup', () => {
 });
 window.addEventListener('resize', resize);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) requestRender(); });
-reducedMotion.addEventListener('change', () => {
-  if (reducedMotion.matches && phase !== 'loading') {
-    phase = 'front'; finishReveal();
-  }
-  for (const tile of tiles) tile.tween = null;
-  requestRender();
-});
 
 async function initialize() {
   createHitTargets();
   await document.fonts.ready;
   await buildTextures();
   epoch = performance.now();
-  phase = reducedMotion.matches ? 'front' : 'entry';
-  if (reducedMotion.matches) finishReveal();
+  phase = 'entry';
   resize();
 }
 
