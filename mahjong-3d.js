@@ -1,8 +1,9 @@
 import * as THREE from './vendor/three.module.js';
 import { SPEC } from './geometry.js';
+import { STICK, REST_STICK } from './score-stick.js';
 
 // Includes every lifted/rotated silhouette and the light's maximum projected shadow.
-export const VIEW = Object.freeze({ left: 420, top: 300, width: 1116, height: 740 });
+export const VIEW = Object.freeze({ left: 420, top: 0, width: 1116, height: 1040 });
 
 // X/Y are table coordinates; Z is physical height. The camera never tilts.
 export function tileTransform(pose) {
@@ -32,6 +33,24 @@ export function createTileGeometries() {
   });
   // The front cap is corrected in UV space so text is upright after a Y-axis flip.
   return { back: geometry(32), core: geometry(92), front: geometry(8, true) };
+}
+
+export function createStickGeometries() {
+  const bevel = .8, x = -STICK.length / 2 + bevel, y = -STICK.width / 2 + bevel;
+  const w = STICK.length - bevel * 2, h = STICK.width - bevel * 2, r = 1.6;
+  const shape = new THREE.Shape();
+  shape.moveTo(x + r, y); shape.lineTo(x + w - r, y);
+  shape.quadraticCurveTo(x + w, y, x + w, y + r);
+  shape.lineTo(x + w, y + h - r); shape.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  shape.lineTo(x + r, y + h); shape.quadraticCurveTo(x, y + h, x, y + h - r);
+  shape.lineTo(x, y + r); shape.quadraticCurveTo(x, y, x + r, y);
+  const pip = new THREE.Path(); pip.absarc(0, 0, 5.2, 0, Math.PI * 2, true); shape.holes.push(pip);
+  const depth = STICK.thickness - 2 * bevel;
+  const body = new THREE.ExtrudeGeometry(shape, { depth, steps: 1, curveSegments: 12, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 1 });
+  body.translate(0, 0, -depth / 2);
+  // The single red pip sits inside the molded recess, on both broad faces.
+  const dot = new THREE.CylinderGeometry(5.2, 5.2, depth, 32); dot.rotateX(Math.PI / 2);
+  return { stickBody: body, stickDot: dot };
 }
 
 const QUAD_VERTEX = `
@@ -78,11 +97,11 @@ export class Mahjong3D {
 
     // Cancel the toon shader's Lambert 1/PI factor, retaining the source palette.
     this.light = new THREE.DirectionalLight(0xffffff, Math.PI);
-    this.light.target.position.set(960, -660, 0);
-    this.light.position.set(720, -580, 1320);
+    this.light.target.position.set(960, -540, 0);
+    this.light.position.set(720, -460, 1320);
     this.light.castShadow = true;
     this.light.shadow.mapSize.set(4096, 4096);
-    Object.assign(this.light.shadow.camera, { left: -640, right: 640, top: 480, bottom: -480, near: 1, far: 2500 });
+    Object.assign(this.light.shadow.camera, { left: -640, right: 640, top: 640, bottom: -640, near: 1, far: 2500 });
     this.light.shadow.bias = -0.00005;
     this.world.add(this.light, this.light.target);
 
@@ -93,7 +112,7 @@ export class Mahjong3D {
     this.gradient.generateMipmaps = false; this.gradient.needsUpdate = true;
     const toon = (options) => new THREE.MeshToonMaterial({ gradientMap: this.gradient, toneMapped: false, ...options });
     const blue = toon({ color: '#2457B8' }), core = toon({ color: '#CFCABB' }), white = toon({ color: '#F4F0E6' });
-    this.geometries = createTileGeometries();
+    this.geometries = { ...createTileGeometries(), ...createStickGeometries() };
     this.materials = new Set([blue, core, white]);
     this.textures = new Map();
     const texture = (source) => {
@@ -120,6 +139,13 @@ export class Mahjong3D {
       group.position.set(tile.x, -tile.y, 66);
       this.world.add(group); return group;
     });
+
+    this.stick = new THREE.Group(); this.stick.name = 'white-tenbou-1000';
+    const red = toon({ color: '#BB4337' }); this.materials.add(red);
+    const body = new THREE.Mesh(this.geometries.stickBody, [white, core]); body.castShadow = true;
+    const dot = new THREE.Mesh(this.geometries.stickDot, red); dot.castShadow = true;
+    this.stick.add(body, dot); this.world.add(this.stick);
+    this.applyStickPose(REST_STICK);
 
     // Only the actual light's shadow is drawn onto the unchanged 2D table canvas.
     this.receiver = new THREE.Mesh(new THREE.PlaneGeometry(1920, 1080), new THREE.ShadowMaterial({ color: '#05251B', opacity: 1, toneMapped: false }));
@@ -169,13 +195,19 @@ export class Mahjong3D {
     }
   }
 
-  applyPoses(poses) {
+  applyStickPose(pose) {
+    this.stick.position.set(pose.x, pose.y, pose.z);
+    this.stick.quaternion.fromArray(pose.quaternion);
+  }
+
+  applyPoses(poses, stickPose = REST_STICK) {
     poses.forEach((pose, index) => {
       const transform = tileTransform(pose), group = this.groups[index];
       group.rotation.y = transform.rotationY;
       group.scale.setScalar(transform.scale);
       group.position.z = transform.z;
     });
+    this.applyStickPose(stickPose);
     this.world.updateMatrixWorld(true);
   }
 
@@ -196,8 +228,8 @@ export class Mahjong3D {
     this.renderer.render(this.quadScene, this.quadCamera);
   }
 
-  render(currentPoses, sampledPoses, amount) {
-    this.applyPoses(currentPoses);
+  render(currentPoses, sampledPoses, amount, stickPose = REST_STICK, stickSamples = []) {
+    this.applyPoses(currentPoses, stickPose);
     this.receiver.visible = true;
     // Casters contribute depth and real shadows, but no color in this pass.
     for (const material of this.materials) material.colorWrite = false;
@@ -212,13 +244,13 @@ export class Mahjong3D {
     if (amount > .002 && sampledPoses.length) {
       this.clearTarget(this.averageTarget);
       this.addSample(this.currentTarget.texture, 1 - amount);
-      for (const poses of sampledPoses) {
-        this.applyPoses(poses);
+      for (const [index, poses] of sampledPoses.entries()) {
+        this.applyPoses(poses, stickSamples[index] ?? stickPose);
         this.renderTileTarget(this.sampleTarget);
         this.addSample(this.sampleTarget.texture, amount / sampledPoses.length);
       }
       output = this.averageTarget.texture;
-      this.applyPoses(currentPoses);
+      this.applyPoses(currentPoses, stickPose);
     }
     this.composeMaterial.uniforms.tiles.value = output;
     this.quad.material = this.composeMaterial;
@@ -227,6 +259,11 @@ export class Mahjong3D {
 
   getTileBounds(index) {
     this.bounds.setFromObject(this.groups[index]);
+    return { x: this.bounds.min.x, y: -this.bounds.max.y, width: this.bounds.max.x - this.bounds.min.x, height: this.bounds.max.y - this.bounds.min.y };
+  }
+
+  getStickBounds() {
+    this.bounds.setFromObject(this.stick);
     return { x: this.bounds.min.x, y: -this.bounds.max.y, width: this.bounds.max.x - this.bounds.min.x, height: this.bounds.max.y - this.bounds.min.y };
   }
 

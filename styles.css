@@ -13,18 +13,14 @@ button:focus-visible, a:focus-visible { outline: 2px solid #f4f0e6; outline-offs
 #viewport { position: fixed; inset: 0; overflow: hidden; }
 #scene { position: absolute; width: 1920px; height: 1080px; transform-origin: 0 0; opacity: 0; }
 #table, #board, #tiles { position: absolute; inset: 0; width: 1920px; height: 1080px; }
-#mahjong { position: absolute; left: 420px; top: 300px; width: 1116px; height: 740px; }
+#mahjong { position: absolute; left: 420px; top: 0; width: 1116px; height: 1040px; }
 #table, #mahjong { pointer-events: none; }
-.console h1 {
-  position: absolute; left: 668px; top: 188px; width: 584px; height: 28px; margin: 0;
-  display: grid; place-items: center; font-size: 20px; font-weight: 500; letter-spacing: 2px;
-  color: #253e35; pointer-events: none;
+.stick-hit {
+  position: absolute; left: 778px; top: 180px; width: 364px; height: 44px;
+  border: 0; padding: 0; background: transparent; border-radius: 3px; z-index: 31;
+  touch-action: manipulation;
 }
-.engraving {
-  position: absolute; left: 624px; top: 225px; width: 672px; margin: 0;
-  font-size: 12px; text-align: center; letter-spacing: .4px; line-height: 14px; color: #59625a;
-  pointer-events: none;
-}
+.stick-hit[aria-busy="true"] { cursor: default; }
 .mechanical { position: absolute; border: 0; padding: 0; background: none; color: #c5c8b7; z-index: 30; }
 .mechanical:disabled { cursor: default; }
 .mechanical .button-top { display: block; position: absolute; transition: filter 160ms ease-in-out, transform 60ms ease-in-out, box-shadow 60ms ease-in-out; }

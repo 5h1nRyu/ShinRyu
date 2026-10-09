@@ -15,7 +15,7 @@
       <div id="scene">
         <div id="board" aria-label="麻将桌上的视觉档案" aria-busy="true">
           <canvas id="table" width="1920" height="1080" aria-hidden="true"></canvas>
-          <canvas id="mahjong" width="1116" height="740" aria-hidden="true"></canvas>
+          <canvas id="mahjong" width="1116" height="1040" aria-hidden="true"></canvas>
           <header class="console" aria-label="档案导航">
             <button id="reset" class="mechanical reset" type="button" aria-label="重置：从左上角波纹翻回蓝背" disabled>
               <span class="button-top"></span><span class="button-label">重置</span>
@@ -26,14 +26,15 @@
             <button id="contact" class="mechanical contact" type="button" aria-label="联系（暂未启用）" disabled>
               <span class="button-top"></span><span class="button-label">联系</span>
             </button>
-            <h1>牌河视觉档案</h1>
-            <p class="engraving">图像 · 文字 · 项目 / 点击蓝背展开 · 重置翻回</p>
+            <h1 class="sr-only">牌河视觉档案</h1>
+            <button id="score-stick" class="stick-hit" type="button" aria-label="白色千点棒：点击拿起并掉落" aria-busy="false" data-motion="idle" disabled></button>
           </header>
           <div id="tiles" role="group" aria-label="十八张牌，六列三行。点击任意一张揭示全部内容。"></div>
         </div>
       </div>
     </main>
     <p id="status" class="sr-only" role="status" aria-live="polite">正在准备牌河。</p>
+    <p id="stick-status" class="sr-only" role="status" aria-live="polite"></p>
     <noscript><div class="no-script">牌河视觉档案需要 JavaScript 展示翻牌交互。请启用 JavaScript 后刷新页面。<a href="https://github.com/5h1nRyu/ShinRyu">查看项目</a></div></noscript>
   </body>
 </html>

@@ -1,5 +1,6 @@
 import { smooth, center, rippleDelay, entryScale, flipPose, motionDistance } from './geometry.js';
 import { Mahjong3D } from './mahjong-3d.js';
+import { REST_STICK, createStickDrop, stickMotionDistance } from './score-stick.js';
 
 const $ = (id) => document.getElementById(id);
 const scene = $('scene'), board = $('board'), canvas = $('table');
@@ -12,6 +13,7 @@ let phase = 'loading', epoch = 0, waveEnd = 0, waveTarget = 'front';
 let hovered = null, pressed = null;
 let raf = 0, pixelScale = 1, orderCounter = 0;
 let mahjong;
+let stickDrop = null, stickEpoch = 0, restingStick = REST_STICK;
 const tiles = Array.from({ length: 18 }, (_, index) => ({
   index, ...center(index), unit: UNIT_IDS[index], fragment: null, tween: null, flip: null, order: index,
 }));
@@ -123,10 +125,7 @@ function drawConsole() {
   context.fillStyle = '#939d91'; context.fill();
   roundRect(context, 624, 177, 672, 57, 27, '#979f94');
   roundRect(context, 634, 179, 652, 48, 23, '#bcc2b5');
-  roundRect(context, 658, 184, 604, 37, 14, '#647266');
-  roundRect(context, 668, 188, 584, 28, 10, '#f4f0e6', '#e2e2d4');
-  context.fillStyle = '#bb4337';
-  for (const x of [698, 1222]) { context.beginPath(); context.arc(x, 202, 5, 0, Math.PI * 2); context.fill(); }
+  roundRect(context, 658, 181, 604, 43, 14, '#647266');
 }
 
 function resize() {
@@ -187,7 +186,14 @@ function blurParameters(time) {
     const limit = turning ? 12 : phase === 'entry' || (tile.flip && time >= tile.flip.start + 480) ? 2 : 1;
     if (speed > .00001) shutter = Math.min(shutter, limit / speed);
   }
+  const stickSpeed = stickMotionDistance(stickPoseAt(time), stickPoseAt(time - 1));
+  amount = Math.max(amount, Math.min(1, stickSpeed / .30));
+  if (stickSpeed > .00001) shutter = Math.min(shutter, 2 / stickSpeed);
   return { amount, window: shutter };
+}
+
+function stickPoseAt(time) {
+  return stickDrop ? stickDrop.at(time - stickEpoch) : restingStick;
 }
 
 function render(time) {
@@ -195,8 +201,15 @@ function render(time) {
   if (phase === 'loading') return;
   if (phase === 'entry' && time - epoch >= 1100) {
     phase = 'back'; board.setAttribute('aria-busy', 'false');
+    $('score-stick').disabled = false;
     $('status').textContent = '十八张牌已落定。点击任意一张蓝背牌，揭示档案。';
   }
+  if (stickDrop && time >= stickEpoch + stickDrop.duration) {
+    restingStick = stickDrop.settled; stickDrop = null;
+    $('score-stick').setAttribute('aria-busy', 'false');
+    $('stick-status').textContent = '点棒已落定，可再次点击拿起。';
+  }
+  $('score-stick').dataset.motion = stickDrop ? time - stickEpoch < 360 ? 'lifting' : 'falling' : 'idle';
   if (phase === 'flipping' && time >= waveEnd) finishFlip();
   for (const tile of tiles) {
     if (tile.tween && time >= tile.tween.start + tile.tween.duration && tile.tween.to === 1) tile.tween = null;
@@ -207,13 +220,19 @@ function render(time) {
   const sampledPoses = blur.amount > .002
     ? Array.from({ length: 7 }, (_, index) => tiles.map((tile) => poseAt(tile, time - blur.window * index / 6)))
     : [];
-  mahjong.render(currentPoses, sampledPoses, blur.amount);
+  const stickSamples = sampledPoses.map((_, index) => stickPoseAt(time - blur.window * index / 6));
+  mahjong.render(currentPoses, sampledPoses, blur.amount, stickPoseAt(time), stickSamples);
+  const stickBounds = mahjong.getStickBounds(), hitHeight = Math.max(44, stickBounds.height);
+  Object.assign($('score-stick').style, {
+    left: `${stickBounds.x}px`, top: `${stickBounds.y - (hitHeight - stickBounds.height) / 2}px`,
+    width: `${stickBounds.width}px`, height: `${hitHeight}px`,
+  });
   const sorted = sortedTiles(time);
   for (let order = 0; order < sorted.length; order++) {
     const tile = sorted[order], bounds = mahjong.getTileBounds(tile.index);
     Object.assign(tile.button.style, { left: `${bounds.x}px`, top: `${bounds.y}px`, width: `${bounds.width}px`, height: `${bounds.height}px`, zIndex: order + 1 });
   }
-  const moving = phase === 'entry' || phase === 'flipping' || tiles.some((tile) => tile.tween && time < tile.tween.start + tile.tween.duration);
+  const moving = stickDrop || phase === 'entry' || phase === 'flipping' || tiles.some((tile) => tile.tween && time < tile.tween.start + tile.tween.duration);
   if (moving) requestRender();
 }
 
@@ -295,6 +314,14 @@ function createHitTargets() {
 
 $('reset').addEventListener('click', () => {
   if (phase === 'front') startFlip(0, 'back');
+});
+$('score-stick').addEventListener('click', () => {
+  if (!mahjong || phase === 'loading' || phase === 'entry' || stickDrop) return;
+  stickDrop = createStickDrop(Math.random, restingStick); stickEpoch = performance.now();
+  $('score-stick').setAttribute('aria-busy', 'true');
+  $('score-stick').dataset.motion = 'lifting';
+  $('stick-status').textContent = '拿起点棒，倾斜松手后掉落。';
+  requestRender();
 });
 window.addEventListener('pointerup', () => {
   if (pressed !== null) { const tile = tiles[pressed]; pressed = null; tweenTo(tile, hovered === tile.index ? 1.04 : 1, 180); }
