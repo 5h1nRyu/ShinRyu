@@ -1,1 +1,1 @@
-# -ShinRyu
+# ShinRyu
