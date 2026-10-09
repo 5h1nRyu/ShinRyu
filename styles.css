@@ -13,7 +13,8 @@ button:focus-visible, a:focus-visible { outline: 2px solid #f4f0e6; outline-offs
 #viewport { position: fixed; inset: 0; overflow: hidden; }
 #scene { position: absolute; width: 1920px; height: 1080px; transform-origin: 0 0; opacity: 0; }
 #table, #board, #tiles { position: absolute; inset: 0; width: 1920px; height: 1080px; }
-#table { pointer-events: none; }
+#mahjong { position: absolute; left: 420px; top: 300px; width: 1116px; height: 740px; }
+#table, #mahjong { pointer-events: none; }
 .console h1 {
   position: absolute; left: 668px; top: 188px; width: 584px; height: 28px; margin: 0;
   display: grid; place-items: center; font-size: 20px; font-weight: 500; letter-spacing: 2px;

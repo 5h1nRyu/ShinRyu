@@ -1,0 +1,242 @@
+import * as THREE from './vendor/three.module.js';
+import { SPEC } from './geometry.js';
+
+// Includes every lifted/rotated silhouette and the light's maximum projected shadow.
+export const VIEW = Object.freeze({ left: 420, top: 300, width: 1116, height: 740 });
+
+// X/Y are table coordinates; Z is physical height. The camera never tilts.
+export function tileTransform(pose) {
+  const halfHeight = pose.q * (SPEC.thickness * Math.abs(Math.cos(pose.theta)) + SPEC.tileWidth * Math.sin(pose.theta)) / 2;
+  return { rotationY: pose.theta, scale: pose.q, z: halfHeight + 32 * pose.height };
+}
+
+export function createTileGeometries() {
+  const shape = new THREE.Shape();
+  const x = -82, y = -112, w = 164, h = 224, r = 8;
+  shape.moveTo(x + r, y); shape.lineTo(x + w - r, y);
+  shape.quadraticCurveTo(x + w, y, x + w, y + r);
+  shape.lineTo(x + w, y + h - r); shape.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  shape.lineTo(x + r, y + h); shape.quadraticCurveTo(x, y + h, x, y + h - r);
+  shape.lineTo(x, y + r); shape.quadraticCurveTo(x, y, x + r, y);
+  const geometry = (depth, flipU = false) => new THREE.ExtrudeGeometry(shape, {
+    depth, bevelEnabled: false, curveSegments: 6, steps: 1,
+    UVGenerator: {
+      generateTopUV(_geometry, vertices, a, b, c) {
+        return [a, b, c].map((i) => new THREE.Vector2(
+          (flipU ? 82 - vertices[i * 3] : vertices[i * 3] + 82) / 164,
+          (vertices[i * 3 + 1] + 112) / 224,
+        ));
+      },
+      generateSideWallUV() { return [new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(1, 1), new THREE.Vector2(0, 1)]; },
+    },
+  });
+  // The front cap is corrected in UV space so text is upright after a Y-axis flip.
+  return { back: geometry(32), core: geometry(92), front: geometry(8, true) };
+}
+
+const QUAD_VERTEX = `
+  varying vec2 vUv;
+  void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+`;
+
+const ACCUMULATE_FRAGMENT = `
+  uniform sampler2D source;
+  uniform float weight;
+  varying vec2 vUv;
+  void main() { gl_FragColor = texture2D(source, vUv) * weight; }
+`;
+
+const COMPOSE_FRAGMENT = `
+  uniform sampler2D tiles;
+  uniform sampler2D shadows;
+  varying vec2 vUv;
+  void main() {
+    // Render targets contain premultiplied linear RGBA, including MSAA edge coverage.
+    vec4 tile = texture2D(tiles, vUv);
+    vec4 shadow = texture2D(shadows, vUv);
+    vec4 result = tile + shadow * (1.0 - tile.a);
+    gl_FragColor = vec4(result.rgb / max(result.a, 0.00001), result.a);
+    #include <colorspace_fragment>
+  }
+`;
+
+export class Mahjong3D {
+  constructor(canvas, tiles) {
+    this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, premultipliedAlpha: false, antialias: false, powerPreference: 'high-performance' });
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.NoToneMapping;
+    this.renderer.autoClear = false;
+    this.renderer.setClearColor(0x000000, 0);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.BasicShadowMap;
+    this.world = new THREE.Scene();
+    this.camera = new THREE.OrthographicCamera(-VIEW.width / 2, VIEW.width / 2, VIEW.height / 2, -VIEW.height / 2, 1, 4000);
+    this.camera.position.set(VIEW.left + VIEW.width / 2, -VIEW.top - VIEW.height / 2, 2000);
+    this.camera.up.set(0, 1, 0);
+    this.camera.lookAt(this.camera.position.x, this.camera.position.y, 0);
+    this.camera.updateMatrixWorld();
+
+    // Cancel the toon shader's Lambert 1/PI factor, retaining the source palette.
+    this.light = new THREE.DirectionalLight(0xffffff, Math.PI);
+    this.light.target.position.set(960, -660, 0);
+    this.light.position.set(720, -580, 1320);
+    this.light.castShadow = true;
+    this.light.shadow.mapSize.set(4096, 4096);
+    Object.assign(this.light.shadow.camera, { left: -640, right: 640, top: 480, bottom: -480, near: 1, far: 2500 });
+    this.light.shadow.bias = -0.00005;
+    this.world.add(this.light, this.light.target);
+
+    // One white toon band keeps original face/side colors independent of normal angle.
+    // The light still supplies real depth-map shadows on the table.
+    this.gradient = new THREE.DataTexture(new Uint8Array([255]), 1, 1, THREE.RedFormat);
+    this.gradient.minFilter = this.gradient.magFilter = THREE.NearestFilter;
+    this.gradient.generateMipmaps = false; this.gradient.needsUpdate = true;
+    const toon = (options) => new THREE.MeshToonMaterial({ gradientMap: this.gradient, toneMapped: false, ...options });
+    const blue = toon({ color: '#2457B8' }), core = toon({ color: '#CFCABB' }), white = toon({ color: '#F4F0E6' });
+    this.geometries = createTileGeometries();
+    this.materials = new Set([blue, core, white]);
+    this.textures = new Map();
+    const texture = (source) => {
+      if (!this.textures.has(source)) {
+        const map = new THREE.CanvasTexture(source); map.colorSpace = THREE.SRGBColorSpace;
+        map.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
+        this.textures.set(source, map);
+      }
+      return this.textures.get(source);
+    };
+    this.groups = tiles.map((tile) => {
+      const group = new THREE.Group(); group.name = `tile-${tile.index}`;
+      const backCap = toon({ map: texture(tile.back) }), frontCap = toon({ map: texture(tile.fragment) });
+      this.materials.add(backCap); this.materials.add(frontCap);
+      for (const [geometry, offset, cap, side] of [
+        [this.geometries.back, 34, backCap, blue],
+        [this.geometries.core, -58, core, core],
+        [this.geometries.front, -66, frontCap, white],
+      ]) {
+        const mesh = new THREE.Mesh(geometry, [cap, side]);
+        mesh.position.z = offset; mesh.castShadow = true; mesh.receiveShadow = false;
+        group.add(mesh);
+      }
+      group.position.set(tile.x, -tile.y, 66);
+      this.world.add(group); return group;
+    });
+
+    // Only the actual light's shadow is drawn onto the unchanged 2D table canvas.
+    this.receiver = new THREE.Mesh(new THREE.PlaneGeometry(1920, 1080), new THREE.ShadowMaterial({ color: '#05251B', opacity: 1, toneMapped: false }));
+    this.receiver.position.set(960, -540, 0); this.receiver.receiveShadow = true;
+    this.world.add(this.receiver);
+
+    this.samples = Math.min(2, this.renderer.getContext().getParameter(this.renderer.getContext().MAX_SAMPLES));
+    const type = this.renderer.getContext().getExtension('EXT_color_buffer_float') ? THREE.HalfFloatType : THREE.UnsignedByteType;
+    const target = (depth, antialias, type = THREE.UnsignedByteType) => {
+      const result = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: depth, stencilBuffer: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, type });
+      result.texture.colorSpace = THREE.LinearSRGBColorSpace;
+      result.samples = antialias ? this.samples : 0;
+      return result;
+    };
+    this.currentTarget = target(true, true, type);
+    this.sampleTarget = target(true, true, type);
+    this.shadowTarget = target(true, false, type);
+    this.averageTarget = target(false, false, type);
+    this.targets = [this.currentTarget, this.sampleTarget, this.shadowTarget, this.averageTarget];
+    this.accumulateMaterial = new THREE.ShaderMaterial({
+      uniforms: { source: { value: null }, weight: { value: 1 } },
+      vertexShader: QUAD_VERTEX, fragmentShader: ACCUMULATE_FRAGMENT,
+      depthTest: false, depthWrite: false, toneMapped: false, transparent: true,
+      blending: THREE.CustomBlending, blendEquation: THREE.AddEquation,
+      blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
+    });
+    this.composeMaterial = new THREE.ShaderMaterial({
+      uniforms: { tiles: { value: null }, shadows: { value: this.shadowTarget.texture } },
+      vertexShader: QUAD_VERTEX, fragmentShader: COMPOSE_FRAGMENT,
+      depthTest: false, depthWrite: false, toneMapped: false, blending: THREE.NoBlending,
+    });
+    this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.composeMaterial);
+    this.quad.frustumCulled = false;
+    this.quadScene = new THREE.Scene(); this.quadScene.add(this.quad);
+    this.quadCamera = new THREE.Camera();
+    this.bounds = new THREE.Box3();
+  }
+
+  resize(pixelScale) {
+    const width = Math.round(VIEW.width * pixelScale), height = Math.round(VIEW.height * pixelScale);
+    this.renderer.setSize(width, height, false);
+    for (const target of this.targets) target.setSize(width, height);
+    const resolution = Math.min(this.renderer.capabilities.maxTextureSize, 2 ** Math.ceil(Math.log2(1280 * pixelScale)));
+    if (this.light.shadow.mapSize.x !== resolution) {
+      this.light.shadow.mapSize.set(resolution, resolution);
+      this.light.shadow.map?.dispose(); this.light.shadow.map = null;
+    }
+  }
+
+  applyPoses(poses) {
+    poses.forEach((pose, index) => {
+      const transform = tileTransform(pose), group = this.groups[index];
+      group.rotation.y = transform.rotationY;
+      group.scale.setScalar(transform.scale);
+      group.position.z = transform.z;
+    });
+    this.world.updateMatrixWorld(true);
+  }
+
+  clearTarget(target) {
+    this.renderer.setRenderTarget(target);
+    this.renderer.clear(true, true, false);
+  }
+
+  renderTileTarget(target) {
+    this.clearTarget(target); this.renderer.render(this.world, this.camera);
+  }
+
+  addSample(texture, weight) {
+    this.renderer.setRenderTarget(this.averageTarget);
+    this.accumulateMaterial.uniforms.source.value = texture;
+    this.accumulateMaterial.uniforms.weight.value = weight;
+    this.quad.material = this.accumulateMaterial;
+    this.renderer.render(this.quadScene, this.quadCamera);
+  }
+
+  render(currentPoses, sampledPoses, amount) {
+    this.applyPoses(currentPoses);
+    this.receiver.visible = true;
+    // Casters contribute depth and real shadows, but no color in this pass.
+    for (const material of this.materials) material.colorWrite = false;
+    this.renderer.shadowMap.autoUpdate = true;
+    this.renderTileTarget(this.shadowTarget);
+    this.renderer.shadowMap.autoUpdate = false;
+    for (const material of this.materials) material.colorWrite = true;
+    this.receiver.visible = false;
+    this.renderTileTarget(this.currentTarget);
+
+    let output = this.currentTarget.texture;
+    if (amount > .002 && sampledPoses.length) {
+      this.clearTarget(this.averageTarget);
+      this.addSample(this.currentTarget.texture, 1 - amount);
+      for (const poses of sampledPoses) {
+        this.applyPoses(poses);
+        this.renderTileTarget(this.sampleTarget);
+        this.addSample(this.sampleTarget.texture, amount / sampledPoses.length);
+      }
+      output = this.averageTarget.texture;
+      this.applyPoses(currentPoses);
+    }
+    this.composeMaterial.uniforms.tiles.value = output;
+    this.quad.material = this.composeMaterial;
+    this.clearTarget(null); this.renderer.render(this.quadScene, this.quadCamera);
+  }
+
+  getTileBounds(index) {
+    this.bounds.setFromObject(this.groups[index]);
+    return { x: this.bounds.min.x, y: -this.bounds.max.y, width: this.bounds.max.x - this.bounds.min.x, height: this.bounds.max.y - this.bounds.min.y };
+  }
+
+  dispose() {
+    this.targets.forEach((target) => target.dispose());
+    this.materials.forEach((material) => material.dispose());
+    this.textures.forEach((texture) => texture.dispose());
+    Object.values(this.geometries).forEach((geometry) => geometry.dispose());
+    this.gradient.dispose(); this.receiver.geometry.dispose(); this.receiver.material.dispose();
+    this.quad.geometry.dispose(); this.accumulateMaterial.dispose(); this.composeMaterial.dispose();
+    this.renderer.dispose();
+  }
+}

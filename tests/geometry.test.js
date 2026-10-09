@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SPEC, center, smooth, entryScale, flipPose, projection, rippleDelay, shadowRect, motionDistance } from '../geometry.js';
+import { SPEC, center, smooth, entryScale, flipPose, projection, rippleDelay, motionDistance } from '../geometry.js';
 
 const near = (actual, expected, tolerance = .00001) => assert.ok(Math.abs(actual - expected) < tolerance, `${actual} != ${expected}`);
 
@@ -14,21 +14,6 @@ test('18 tile centers preserve the 4px seams and the specified bounding box', ()
   assert.equal(last.y + SPEC.tileHeight / 2, 1000);
   assert.equal(center(1).x - first.x - SPEC.tileWidth, 4);
   assert.equal(center(6).y - first.y - SPEC.tileHeight, 4);
-});
-
-test('only the sixth column ever owns a hard shadow, anchored to its projected right edge', () => {
-  for (const theta of [0, Math.PI / 4, Math.PI / 2, Math.PI]) {
-    for (let i = 0; i < 18; i++) {
-      const shadow = shadowRect(i, theta, 1.04);
-      if (i % 6 !== 5) assert.equal(shadow, null);
-      else {
-        near(shadow.x, center(i).x + projection(theta, 1.04).width / 2);
-        near(shadow.width, 24.96); near(shadow.height, 232.96);
-      }
-    }
-  }
-  const staticShadow = shadowRect(17, Math.PI, 1);
-  assert.deepEqual(staticShadow, { x: 1462, y: 776, width: 24, height: 224 });
 });
 
 test('the 600ms flip shows only the long side at 300ms and upright content at the end', () => {

@@ -1,23 +1,22 @@
-import { SPEC, smooth, center, rippleDelay, entryScale, flipPose, projection, shadowRect, motionDistance } from './geometry.js';
+import { smooth, center, rippleDelay, entryScale, flipPose, motionDistance } from './geometry.js';
+import { Mahjong3D } from './mahjong-3d.js';
 
 const $ = (id) => document.getElementById(id);
 const scene = $('scene'), board = $('board'), canvas = $('table');
 const ctx = canvas.getContext('2d', { alpha: false });
 const FONT = '"Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif';
-const COLORS = { table: '#0B503D', back: '#2457B8', front: '#F4F0E6', core: '#CFCABB', shadow: '#05251B' };
+const COLORS = { table: '#0B503D', back: '#2457B8', front: '#F4F0E6' };
 const UNIT_IDS = ['A', 'A', 'A', 'B', 'B', 'B', 'A', 'A', 'A', 'C', 'C', 'D', 'E', 'E', 'F', 'F', 'G', 'G'];
 const UNIT_NAMES = { A: '主图：观察与秩序', B: '简介：牌河视觉档案', C: '项目：网格实验', D: '关于：整理与创作', E: '文字：近处的秩序', F: '图片：图像研究', G: '联系：一起做点什么' };
 let phase = 'loading', epoch = 0, waveEnd = 0, waveTarget = 'front';
 let hovered = null, pressed = null;
 let raf = 0, pixelScale = 1, orderCounter = 0;
+let mahjong;
 const tiles = Array.from({ length: 18 }, (_, index) => ({
   index, ...center(index), unit: UNIT_IDS[index], fragment: null, tween: null, flip: null, order: index,
 }));
-const layers = ['background', 'current', 'sample', 'average'].map(() => {
-  const element = document.createElement('canvas');
-  return { element, context: element.getContext('2d') };
-});
-const [background, current, sample, average] = layers;
+const background = { element: document.createElement('canvas') };
+background.context = background.element.getContext('2d');
 
 function roundRect(context, x, y, width, height, radius, fill, stroke) {
   if (width <= 0 || height <= 0) return;
@@ -80,6 +79,7 @@ async function buildTextures() {
     const cropX = (tile.index % 6 - col) * 168, cropY = (Math.floor(tile.index / 6) - row) * 228;
     const texture = makeTexture(164, 224);
     texture.context.drawImage(units[tile.unit].element, cropX * 2, cropY * 2, 328, 448, 0, 0, 164, 224);
+    roundRect(texture.context, 1, 1, 162, 222, 7, null, '#fbf7ed');
     tile.fragment = texture.element;
     tile.crop = { x: cropX, y: cropY, width: 164, height: 224 };
   }
@@ -136,17 +136,18 @@ function resize() {
   scene.style.top = `${(height - 1080 * scale) / 2}px`;
   scene.style.transform = `scale(${scale})`;
   pixelScale = Math.min(2, Math.max(.5, scale * (window.devicePixelRatio || 1)));
-  for (const element of [canvas, ...layers.map((layer) => layer.element)]) {
+  for (const element of [canvas, background.element]) {
     element.width = Math.round(1920 * pixelScale); element.height = Math.round(1080 * pixelScale);
   }
-  for (const context of [ctx, ...layers.map((layer) => layer.context)]) {
+  for (const context of [ctx, background.context]) {
     context.setTransform(pixelScale, 0, 0, pixelScale, 0, 0);
   }
-  drawConsole(); requestRender();
+  drawConsole(); ctx.drawImage(background.element, 0, 0, 1920, 1080);
+  mahjong?.resize(pixelScale); requestRender();
 }
 
 function poseAt(tile, time) {
-  if (tile.flip) return flipPose(time - tile.flip.start, tile.flip.from, tile.flip.fromFront);
+  if (tile.flip) return flipPose(time - tile.flip.start, tile.flip.from, tile.flip.fromFront, tile.flip.fromHeight);
   const theta = phase === 'front' ? Math.PI : 0;
   if (tile.tween) {
     const tween = tile.tween;
@@ -166,29 +167,6 @@ function tweenTo(tile, target, duration) {
   requestRender();
 }
 
-function drawTile(context, tile, pose) {
-  const p = projection(pose.theta, pose.q);
-  context.save(); context.translate(tile.x, tile.y);
-  if (p.sideWidth > .0001) {
-    const left = p.sideOffset - p.sideWidth / 2;
-    roundRect(context, left, -p.height / 2, p.sideWidth, p.height, 2 * pose.q, COLORS.core);
-    context.save(); context.beginPath(); context.roundRect(left, -p.height / 2, p.sideWidth, p.height, Math.min(2 * pose.q, p.sideWidth / 2)); context.clip();
-    const bands = p.front ? [[8, COLORS.front], [92, COLORS.core], [32, COLORS.back]] : [[32, COLORS.back], [92, COLORS.core], [8, COLORS.front]];
-    let x = left;
-    for (const [width, color] of bands) { const w = p.sideWidth * width / 132; context.fillStyle = color; context.fillRect(x, -p.height / 2, w, p.height); x += w; }
-    context.restore();
-  }
-  if (p.faceWidth > .0001) {
-    // Texture direction is corrected on the new face; nothing is mirrored at 180°.
-    context.translate(p.faceOffset, 0);
-    context.scale(p.faceWidth / 164, pose.q);
-    context.beginPath(); context.roundRect(-82, -112, 164, 224, 8); context.clip();
-    context.drawImage(p.front ? tile.fragment : tile.back, -82, -112, 164, 224);
-    roundRect(context, -81, -111, 162, 222, 7, null, p.front ? '#fbf7ed' : '#7897ce');
-  }
-  context.restore();
-}
-
 function sortedTiles(time) {
   return [...tiles].sort((a, b) => {
     const pa = poseAt(a, time), pb = poseAt(b, time);
@@ -197,11 +175,6 @@ function sortedTiles(time) {
     return Number(activeA) - Number(activeB) || pa.height - pb.height ||
       (a.flip?.start ?? a.order) - (b.flip?.start ?? b.order) || a.index - b.index;
   });
-}
-
-function drawTileLayer(layer, time) {
-  layer.context.clearRect(0, 0, 1920, 1080);
-  for (const tile of sortedTiles(time)) drawTile(layer.context, tile, poseAt(tile, time));
 }
 
 function blurParameters(time) {
@@ -229,49 +202,16 @@ function render(time) {
     if (tile.tween && time >= tile.tween.start + tile.tween.duration && tile.tween.to === 1) tile.tween = null;
   }
   scene.style.opacity = String(smooth((time - epoch) / 200));
-  ctx.drawImage(background.element, 0, 0, 1920, 1080);
-  // A continuous occlusion bed fills every tile seam, including rounded-corner junctions.
-  // Shadows are drawn at the current time, outside all motion sampling layers.
-  ctx.fillStyle = COLORS.shadow;
-  ctx.fillRect(458, 320, 1004, 680);
-  const rightShadows = [];
-  for (const tile of tiles) {
-    const pose = poseAt(tile, time), shadow = shadowRect(tile.index, pose.theta, pose.q);
-    if (shadow) {
-      ctx.fillRect(shadow.x, shadow.y, shadow.width, shadow.height);
-      rightShadows.push(shadow);
-    }
-  }
-  // Join the right-column shadows across row seams, following their current contours.
-  for (let i = 0; i < rightShadows.length - 1; i++) {
-    const upper = rightShadows[i], lower = rightShadows[i + 1];
-    const bottom = upper.y + upper.height;
-    if (lower.y <= bottom) continue;
-    ctx.beginPath(); ctx.moveTo(upper.x, bottom);
-    ctx.lineTo(upper.x + upper.width, bottom);
-    ctx.lineTo(lower.x + lower.width, lower.y);
-    ctx.lineTo(lower.x, lower.y); ctx.closePath(); ctx.fill();
-  }
-  drawTileLayer(current, time);
+  const currentPoses = tiles.map((tile) => poseAt(tile, time));
   const blur = blurParameters(time);
-  if (blur.amount > .002) {
-    // Add premultiplied RGBA samples, preserving solved occlusion for each time sample.
-    const mix = average.context; mix.clearRect(0, 0, 1920, 1080);
-    mix.globalCompositeOperation = 'lighter';
-    mix.globalAlpha = 1 - blur.amount;
-    mix.drawImage(current.element, 0, 0, 1920, 1080);
-    mix.globalAlpha = blur.amount / 7;
-    for (let i = 0; i < 7; i++) {
-      drawTileLayer(sample, time - blur.window * i / 6);
-      mix.drawImage(sample.element, 0, 0, 1920, 1080);
-    }
-    mix.globalAlpha = 1; mix.globalCompositeOperation = 'source-over';
-    ctx.drawImage(average.element, 0, 0, 1920, 1080);
-  } else ctx.drawImage(current.element, 0, 0, 1920, 1080);
+  const sampledPoses = blur.amount > .002
+    ? Array.from({ length: 7 }, (_, index) => tiles.map((tile) => poseAt(tile, time - blur.window * index / 6)))
+    : [];
+  mahjong.render(currentPoses, sampledPoses, blur.amount);
   const sorted = sortedTiles(time);
   for (let order = 0; order < sorted.length; order++) {
-    const tile = sorted[order], pose = poseAt(tile, time), p = projection(pose.theta, pose.q);
-    Object.assign(tile.button.style, { left: `${tile.x - p.width / 2}px`, top: `${tile.y - p.height / 2}px`, width: `${p.width}px`, height: `${p.height}px`, zIndex: order + 1 });
+    const tile = sorted[order], bounds = mahjong.getTileBounds(tile.index);
+    Object.assign(tile.button.style, { left: `${bounds.x}px`, top: `${bounds.y}px`, width: `${bounds.width}px`, height: `${bounds.height}px`, zIndex: order + 1 });
   }
   const moving = phase === 'entry' || phase === 'flipping' || tiles.some((tile) => tile.tween && time < tile.tween.start + tile.tween.duration);
   if (moving) requestRender();
@@ -282,7 +222,10 @@ function requestRender() { if (!raf) raf = requestAnimationFrame(render); }
 function startFlip(origin, target) {
   if (!interactive() || phase === target) return;
   const time = performance.now();
-  const starts = tiles.map((tile) => ({ from: poseAt(tile, time).q, fromFront: phase === 'front', start: time + rippleDelay(origin, tile.index) }));
+  const starts = tiles.map((tile) => {
+    const pose = poseAt(tile, time);
+    return { from: pose.q, fromHeight: pose.height, fromFront: phase === 'front', start: time + rippleDelay(origin, tile.index) };
+  });
   hovered = null; pressed = null;
   for (const tile of tiles) { tile.flip = starts[tile.index]; tile.tween = null; }
   phase = 'flipping'; waveTarget = target;
@@ -363,6 +306,7 @@ async function initialize() {
   createHitTargets();
   await document.fonts.ready;
   await buildTextures();
+  mahjong = new Mahjong3D($('mahjong'), tiles);
   epoch = performance.now();
   phase = 'entry';
   resize();
@@ -373,5 +317,5 @@ initialize().catch((error) => {
   $('status').textContent = '页面资源加载失败，请刷新后重试。';
   scene.style.opacity = '1';
   const fallback = document.createElement('div'); fallback.className = 'no-script';
-  fallback.textContent = '牌河资源暂时未能加载，请刷新页面重试。'; scene.append(fallback);
+  fallback.textContent = '3D 牌河暂时未能启动，请使用支持 WebGL 2 的浏览器并刷新重试。'; scene.append(fallback);
 });

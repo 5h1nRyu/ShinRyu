@@ -1,0 +1,2 @@
+# Keep official vendored builds byte-for-byte identical to the upstream package.
+vendor/*.js -whitespace

@@ -1,12 +1,12 @@
 {
   "name": "shinryu-tile-archive",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "A dependency-free static visual archive for GitHub Pages.",
+  "description": "A static visual archive with 3D toon mahjong and a 2D control box.",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "check": "node --check app.js && node --check geometry.js",
+    "check": "node --check app.js && node --check geometry.js && node --check mahjong-3d.js",
     "start": "python3 -m http.server 8080"
   }
 }
