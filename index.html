@@ -16,31 +16,19 @@
         <div id="board" aria-label="麻将桌上的视觉档案" aria-busy="true">
           <canvas id="table" width="1920" height="1080" aria-hidden="true"></canvas>
           <header class="console" aria-label="档案导航">
-            <button id="works" class="mechanical works" type="button" aria-label="作品：揭示牌河或查看主图">
-              <span class="button-top"></span><span class="button-label">作品</span>
+            <button id="reset" class="mechanical reset" type="button" aria-label="重置：从左上角波纹翻回蓝背" disabled>
+              <span class="button-top"></span><span class="button-label">重置</span>
             </button>
-            <button id="about" class="mechanical about" type="button" aria-label="关于：查看档案介绍">
+            <button id="about" class="mechanical about" type="button" aria-label="关于（暂未启用）" disabled>
               <span class="button-top"></span><span class="button-label">关于</span>
             </button>
-            <button id="contact" class="mechanical contact" type="button" aria-label="联系：查看联系说明">
+            <button id="contact" class="mechanical contact" type="button" aria-label="联系（暂未启用）" disabled>
               <span class="button-top"></span><span class="button-label">联系</span>
             </button>
             <h1>牌河视觉档案</h1>
-            <p class="engraving">图像 · 文字 · 项目 / 点击任意一张牌展开</p>
+            <p class="engraving">图像 · 文字 · 项目 / 点击蓝背展开 · 重置翻回</p>
           </header>
           <div id="tiles" role="group" aria-label="十八张牌，六列三行。点击任意一张揭示全部内容。"></div>
-        </div>
-        <div id="detail-overlay" hidden>
-          <section id="detail" role="dialog" aria-modal="true" aria-labelledby="detail-title" aria-describedby="detail-intro" tabindex="-1">
-            <button id="close-detail" type="button" aria-label="关闭详情"><span aria-hidden="true">×</span></button>
-            <div class="detail-scroll">
-              <p id="detail-label" class="eyebrow"></p>
-              <h2 id="detail-title"></h2>
-              <p id="detail-intro" class="intro"></p>
-              <div id="detail-body"></div>
-            </div>
-            <footer class="detail-footer"><span>SHINRYU / 视觉档案</span><span>ESC 或点击桌面关闭</span></footer>
-          </section>
         </div>
       </div>
     </main>

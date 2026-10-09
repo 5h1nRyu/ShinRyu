@@ -23,7 +23,11 @@ export function entryScale(index, time) {
   return 1.06 - .06 * smooth((time - 180 - 18 * index) / 420);
 }
 
-export function flipPose(time, initialScale = 1) {
+export function flipPose(time, initialScale = 1, fromFront = false) {
+  if (fromFront) {
+    const pose = flipPose(time, initialScale);
+    return { ...pose, theta: Math.PI - pose.theta };
+  }
   if (time < 0) return { theta: 0, q: initialScale, height: 0 };
   if (time < 120) {
     const lift = smooth(time / 120);

@@ -56,6 +56,22 @@ test('the distance wave starts at the clicked center and finishes in at most 120
   assert.equal(rippleDelay(0, 17), 600);
 });
 
+test('reset flips from the upright front to the blue back with the same 600ms timing', () => {
+  const initial = flipPose(0, 1.025, true);
+  near(initial.theta, Math.PI); near(initial.q, 1.025);
+  const side = flipPose(300, 1.025, true);
+  near(side.theta, Math.PI / 2); near(side.q, 1.04);
+  near(projection(side.theta, side.q).sideWidth, 137.28);
+  const final = flipPose(600, 1.025, true);
+  near(final.theta, 0); near(final.q, 1);
+  assert.equal(projection(final.theta, final.q).front, false);
+  for (const time of [-1, 0, 70, 120, 210, 300, 390, 480, 550, 600, 650]) {
+    const forward = flipPose(time, 1.025), reverse = flipPose(time, 1.025, true);
+    near(forward.theta + reverse.theta, Math.PI);
+    near(forward.q, reverse.q);
+  }
+});
+
 test('entry finishes at 906ms and all interpolation holds at its endpoints', () => {
   near(entryScale(17, 180 + 18 * 17), 1.06);
   near(entryScale(17, 906), 1);

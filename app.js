@@ -7,9 +7,9 @@ const FONT = '"Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC", "PingFan
 const COLORS = { table: '#0B503D', back: '#2457B8', front: '#F4F0E6', core: '#CFCABB', shadow: '#05251B' };
 const UNIT_IDS = ['A', 'A', 'A', 'B', 'B', 'B', 'A', 'A', 'A', 'C', 'C', 'D', 'E', 'E', 'F', 'F', 'G', 'G'];
 const UNIT_NAMES = { A: '主图：观察与秩序', B: '简介：牌河视觉档案', C: '项目：网格实验', D: '关于：整理与创作', E: '文字：近处的秩序', F: '图片：图像研究', G: '联系：一起做点什么' };
-let phase = 'loading', epoch = 0, revealEnd = 0, pendingDetail = null;
-let hovered = null, pressed = null, lastTrigger = null, dialogClosing = false;
-let dialogTimer = 0, raf = 0, pixelScale = 1, orderCounter = 0;
+let phase = 'loading', epoch = 0, waveEnd = 0, waveTarget = 'front';
+let hovered = null, pressed = null;
+let raf = 0, pixelScale = 1, orderCounter = 0;
 const tiles = Array.from({ length: 18 }, (_, index) => ({
   index, ...center(index), unit: UNIT_IDS[index], fragment: null, tween: null, flip: null, order: index,
 }));
@@ -69,9 +69,9 @@ async function buildTextures() {
   textCard(units.E.context, 0, '04 / 文字', '近处的秩序');
   textCard(units.E.context, 168, '随笔', '阅读片段');
   textCard(units.F.context, 0, '05 / 图片', '图像占位');
-  textCard(units.F.context, 168, '图像', '查看图集');
+  textCard(units.F.context, 168, '图像', '图像研究');
   textCard(units.G.context, 0, '06 / 联系', ['一起做', '点什么']);
-  textCard(units.G.context, 168, '联系', '查看详情');
+  textCard(units.G.context, 168, '联系', '保持联系');
   const origins = {
     A: [0, 0], B: [0, 3], C: [1, 3], D: [1, 5], E: [2, 0], F: [2, 2], G: [2, 4],
   };
@@ -146,7 +146,7 @@ function resize() {
 }
 
 function poseAt(tile, time) {
-  if (tile.flip) return flipPose(time - tile.flip.start, tile.flip.from);
+  if (tile.flip) return flipPose(time - tile.flip.start, tile.flip.from, tile.flip.fromFront);
   const theta = phase === 'front' ? Math.PI : 0;
   if (tile.tween) {
     const tween = tile.tween;
@@ -158,7 +158,7 @@ function poseAt(tile, time) {
 }
 
 function tweenTo(tile, target, duration) {
-  if (phase === 'revealing' || phase === 'entry' || phase === 'loading') return;
+  if (phase === 'flipping' || phase === 'entry' || phase === 'loading') return;
   const time = performance.now();
   const from = poseAt(tile, time).q;
   tile.tween = { from, to: target, duration, start: time };
@@ -222,19 +222,35 @@ function render(time) {
   if (phase === 'loading') return;
   if (phase === 'entry' && time - epoch >= 1100) {
     phase = 'back'; board.setAttribute('aria-busy', 'false');
-    $('status').textContent = '十八张牌已落定。点击任意一张牌或作品按钮，揭示档案。';
+    $('status').textContent = '十八张牌已落定。点击任意一张蓝背牌，揭示档案。';
   }
-  if (phase === 'revealing' && time >= revealEnd) finishReveal();
+  if (phase === 'flipping' && time >= waveEnd) finishFlip();
   for (const tile of tiles) {
     if (tile.tween && time >= tile.tween.start + tile.tween.duration && tile.tween.to === 1) tile.tween = null;
   }
   scene.style.opacity = String(smooth((time - epoch) / 200));
   ctx.drawImage(background.element, 0, 0, 1920, 1080);
-  // These three rectangles are rendered once at the current time, outside all sampling layers.
+  // A continuous occlusion bed fills every tile seam, including rounded-corner junctions.
+  // Shadows are drawn at the current time, outside all motion sampling layers.
   ctx.fillStyle = COLORS.shadow;
+  ctx.fillRect(458, 320, 1004, 680);
+  const rightShadows = [];
   for (const tile of tiles) {
     const pose = poseAt(tile, time), shadow = shadowRect(tile.index, pose.theta, pose.q);
-    if (shadow) ctx.fillRect(shadow.x, shadow.y, shadow.width, shadow.height);
+    if (shadow) {
+      ctx.fillRect(shadow.x, shadow.y, shadow.width, shadow.height);
+      rightShadows.push(shadow);
+    }
+  }
+  // Join the right-column shadows across row seams, following their current contours.
+  for (let i = 0; i < rightShadows.length - 1; i++) {
+    const upper = rightShadows[i], lower = rightShadows[i + 1];
+    const bottom = upper.y + upper.height;
+    if (lower.y <= bottom) continue;
+    ctx.beginPath(); ctx.moveTo(upper.x, bottom);
+    ctx.lineTo(upper.x + upper.width, bottom);
+    ctx.lineTo(lower.x + lower.width, lower.y);
+    ctx.lineTo(lower.x, lower.y); ctx.closePath(); ctx.fill();
   }
   drawTileLayer(current, time);
   const blur = blurParameters(time);
@@ -257,39 +273,44 @@ function render(time) {
     const tile = sorted[order], pose = poseAt(tile, time), p = projection(pose.theta, pose.q);
     Object.assign(tile.button.style, { left: `${tile.x - p.width / 2}px`, top: `${tile.y - p.height / 2}px`, width: `${p.width}px`, height: `${p.height}px`, zIndex: order + 1 });
   }
-  const moving = phase === 'entry' || phase === 'revealing' || tiles.some((tile) => tile.tween && time < tile.tween.start + tile.tween.duration);
+  const moving = phase === 'entry' || phase === 'flipping' || tiles.some((tile) => tile.tween && time < tile.tween.start + tile.tween.duration);
   if (moving) requestRender();
 }
 
 function requestRender() { if (!raf) raf = requestAnimationFrame(render); }
 
-function startReveal(origin, detail = null, trigger = null) {
-  if (phase === 'loading' || phase === 'entry') return;
-  if (phase === 'revealing') {
-    if (detail === 'D' || detail === 'G') pendingDetail = { unit: detail, trigger };
-    return;
-  }
-  if (phase === 'front') { if (detail) openDetail(detail, trigger); return; }
+function startFlip(origin, target) {
+  if (!interactive() || phase === target) return;
   const time = performance.now();
-  const starts = tiles.map((tile) => ({ from: poseAt(tile, time).q, start: time + rippleDelay(origin, tile.index) }));
+  const starts = tiles.map((tile) => ({ from: poseAt(tile, time).q, fromFront: phase === 'front', start: time + rippleDelay(origin, tile.index) }));
   hovered = null; pressed = null;
   for (const tile of tiles) { tile.flip = starts[tile.index]; tile.tween = null; }
-  phase = 'revealing'; revealEnd = Math.max(...starts.map((flip) => flip.start)) + 600;
-  pendingDetail = detail ? { unit: detail, trigger } : null;
-  board.setAttribute('aria-busy', 'true'); $('status').textContent = '正在揭示牌河。';
+  phase = 'flipping'; waveTarget = target;
+  waveEnd = Math.max(...starts.map((flip) => flip.start)) + 600;
+  $('reset').disabled = true;
+  board.setAttribute('aria-busy', 'true');
+  $('status').textContent = target === 'front' ? '正在揭示牌河。' : '正在从左上角波纹重置牌河。';
   requestRender();
 }
 
-function finishReveal() {
-  phase = 'front';
-  for (const tile of tiles) { tile.flip = null; tile.tween = null; tile.button.setAttribute('aria-label', `${UNIT_NAMES[tile.unit]}，第${Math.floor(tile.index / 6) + 1}行第${tile.index % 6 + 1}列`); }
-  $('tiles').setAttribute('aria-label', '十八张牌，七个内容单元。点击任意片段查看对应详情。');
+function finishFlip() {
+  phase = waveTarget;
+  for (const tile of tiles) {
+    tile.flip = null; tile.tween = null;
+    const label = phase === 'front' ? UNIT_NAMES[tile.unit] : '揭示档案';
+    tile.button.setAttribute('aria-label', `${label}，第${Math.floor(tile.index / 6) + 1}行第${tile.index % 6 + 1}列`);
+  }
+  $('reset').disabled = phase !== 'front';
+  $('tiles').setAttribute('aria-label', phase === 'front'
+    ? '十八张牌，七个内容单元。悬停可抬起单牌，点击重置翻回蓝背。'
+    : '十八张蓝背牌，六列三行。点击任意一张揭示全部内容。');
   board.setAttribute('aria-busy', 'false');
-  $('status').textContent = '档案已展开。可以查看图像、文字、项目、关于与联系。';
-  if (pendingDetail) { const target = pendingDetail; pendingDetail = null; openDetail(target.unit, target.trigger); }
+  $('status').textContent = phase === 'front'
+    ? '档案已展开。点击上方重置，从左上角翻回蓝背。'
+    : '牌河已重置。点击任意一张蓝背牌，可以再次揭示。';
 }
 
-function interactive() { return (phase === 'back' || phase === 'front') && $('detail-overlay').hidden; }
+function interactive() { return phase === 'back' || phase === 'front'; }
 
 function createHitTargets() {
   for (const tile of tiles) {
@@ -313,8 +334,8 @@ function createHitTargets() {
     button.addEventListener('click', () => {
       if (!interactive()) return;
       pressed = null;
-      if (phase === 'back') startReveal(tile.index);
-      else { tweenTo(tile, 1, 200); openDetail(tile.unit, button); }
+      if (phase === 'back') startFlip(tile.index, 'front');
+      else tweenTo(tile, hovered === tile.index ? 1.04 : 1, 180);
     });
     button.addEventListener('keydown', (event) => {
       if (!interactive()) return;
@@ -329,89 +350,9 @@ function createHitTargets() {
   }
 }
 
-const DETAILS = {
-  A: {
-    label: '00 / 主图 · ORIGINAL STUDY', title: '观察与秩序',
-    intro: '一个圆、一片绿、几条斜线。完整的画面被分成六张牌，也在细小的间隙里保持联系。',
-    body: '<figure><img class="hero-image" src="./assets/artwork.svg" alt="鼠尾草绿色圆角矩形上覆盖着金色圆形，浅色斜线穿过画面，底部是一片深绿。"><figcaption>原创二维图像 / 500 × 452 / 主图占位</figcaption></figure><p>这幅图像是档案的第一张练习：用克制的形状、色彩和留白，观察整体与局部之间的关系。它也为之后替换成真实作品留下空间。</p>',
-  },
-  B: {
-    label: '01 / 简介', title: '牌河视觉档案',
-    intro: '将图像、文字与项目放在一张麻将桌上。十八张牌，七个单元，一次展开。',
-    body: '<p>熟悉的物件，可以成为另一种阅读入口。每张牌收藏一个片段，片段又共同组成更大的画面。</p><p>从任意一张牌开始，沿着细缝继续看。你可以打开主图、浏览项目、阅读随笔，或了解这个档案。</p><dl class="facts"><div><dt>载体</dt><dd>18 张独立牌片</dd></div><div><dt>内容</dt><dd>7 个档案单元</dd></div><div><dt>主题</dt><dd>观察与秩序</dd></div></dl>',
-  },
-  C: {
-    label: '02 / 项目 · 2026', title: '网格实验',
-    intro: '将连续的内容放进离散的网格，让局部拥有自己的节奏。',
-    body: '<figure><img class="hero-image" src="./assets/study-lines.svg" alt="深绿底色、斜向浅绿条纹和中央金色圆形。"><figcaption>图形与网格 / 项目占位</figcaption></figure><h3>从物件到界面</h3><p>牌面是内容的载体，按钮是浏览的起点。翻身只发生一次；展开之后，每一个片段都可以独立打开对应的内容。</p><dl class="facts"><div><dt>方向</dt><dd>视觉与交互</dd></div><div><dt>形式</dt><dd>静态网页</dd></div><div><dt>状态</dt><dd>概念实验</dd></div></dl>',
-  },
-  D: {
-    label: '03 / 关于', title: '整理与创作',
-    intro: '在熟悉的日常里寻找构图，在小小的秩序里保存想法。',
-    body: '<p>牌河视觉档案是 ShinRyu 的一个视觉实验。它用十八张牌收纳图像、文字与项目，把观看变成一段轻缓的探索。</p><h3>留给未来的内容</h3><p>这里目前使用原创图像和示例文字，作为作品集的内容占位。真实作品、个人介绍与新的记录，可以逐一放进这副牌里。</p>',
-  },
-  E: {
-    label: '04 / 文字 · 随笔', title: '近处的秩序',
-    intro: '有时，观察并不需要去很远的地方。',
-    body: '<p>桌上的物件总会留下某种排列。杯子靠近窗，纸页叠在一旁，一枚小小的标记停在边缘。它们并没有约定，却让一片空间有了节奏。</p><p>把目光放近一些，秩序就会从间隙里出现。重复并不意味着相同；每一次轻微的偏移，都让形状显得更具体。</p><p>这副牌也是这样。完整的画面经过切分，暂时离开它熟悉的位置，再在安静下来时重新相遇。留白不是缺失，而是让每个片段得以被看见的距离。</p><p>先收藏一个片段，再慢慢拼成自己的档案。</p><p class="eyebrow">示例随笔 / 可替换为正式文章</p>',
-  },
-  F: {
-    label: '05 / 图片 · 图像研究', title: '形状的三种练习',
-    intro: '用同一组色彩，试着找到不同的平衡。',
-    body: '<div class="detail-grid"><figure><img src="./assets/artwork.svg" alt="金色圆形与浅色斜线构成的绿色图像。"><figcaption>01 / 分割</figcaption></figure><figure><img src="./assets/study-circle.svg" alt="浅绿方形内的金色圆形，白色十字线经过圆心。"><figcaption>02 / 中心</figcaption></figure><figure><img src="./assets/study-lines.svg" alt="深绿底色上排列浅绿斜线，金色圆形位于中央。"><figcaption>03 / 重复</figcaption></figure></div><p>这些原创二维图像是图集的占位内容，也是一组关于形状、尺度与色彩的简单练习。</p>',
-  },
-  G: {
-    label: '06 / 联系', title: '一起做点什么',
-    intro: '如果你对图像、文字或界面实验感兴趣，可以从这个项目开始交流。',
-    body: '<p>正式联系方式尚未填写。目前可以访问 ShinRyu 的 GitHub 仓库，查看项目与公开更新。</p><p><a class="external-link" href="https://github.com/5h1nRyu/ShinRyu" target="_blank" rel="noopener noreferrer">访问 GitHub 仓库 ↗</a></p><p class="eyebrow">联系说明占位 / 后续可补充邮箱或其他渠道</p>',
-  },
-};
-
-function openDetail(unit, trigger) {
-  if (phase !== 'front' || !$('detail-overlay').hidden) return;
-  const detail = DETAILS[unit]; if (!detail) return;
-  lastTrigger = trigger || document.activeElement;
-  hovered = null; pressed = null;
-  for (const tile of tiles) if (tile.tween) tweenTo(tile, 1, 200);
-  $('detail-label').textContent = detail.label; $('detail-title').textContent = detail.title;
-  $('detail-intro').textContent = detail.intro; $('detail-body').innerHTML = detail.body;
-  const overlay = $('detail-overlay'); overlay.hidden = false; overlay.className = 'entering';
-  dialogClosing = false; board.inert = true;
-  $('detail').querySelector('.detail-scroll').scrollTop = 0;
-  $('close-detail').focus();
-  clearTimeout(dialogTimer);
-  dialogTimer = setTimeout(() => { if (!dialogClosing) overlay.className = ''; }, 240);
-  requestRender();
-}
-
-function closeDetail() {
-  const overlay = $('detail-overlay'); if (overlay.hidden || dialogClosing) return;
-  dialogClosing = true; clearTimeout(dialogTimer); overlay.className = 'leaving';
-  dialogTimer = setTimeout(() => {
-    overlay.hidden = true; overlay.className = ''; board.inert = false; dialogClosing = false;
-    if (lastTrigger?.isConnected) lastTrigger.focus({ preventScroll: true });
-    requestRender();
-  }, 180);
-}
-
-$('close-detail').addEventListener('click', closeDetail);
-$('detail-overlay').addEventListener('click', (event) => { if (event.target === $('detail-overlay')) closeDetail(); });
-document.addEventListener('keydown', (event) => {
-  if ($('detail-overlay').hidden) return;
-  if (event.key === 'Escape') { event.preventDefault(); closeDetail(); }
-  if (event.key === 'Tab') {
-    const focusable = [...$('detail').querySelectorAll('button, a[href], [tabindex="0"]')];
-    const first = focusable[0], last = focusable.at(-1);
-    if (event.shiftKey && (document.activeElement === first || document.activeElement === $('detail'))) { event.preventDefault(); last.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-  }
+$('reset').addEventListener('click', () => {
+  if (phase === 'front') startFlip(0, 'back');
 });
-for (const [id, unit] of [['works', 'A'], ['about', 'D'], ['contact', 'G']]) {
-  $(id).addEventListener('click', () => {
-    if (phase === 'front') openDetail(unit, $(id));
-    else startReveal(8, id === 'works' ? null : unit, $(id));
-  });
-}
 window.addEventListener('pointerup', () => {
   if (pressed !== null) { const tile = tiles[pressed]; pressed = null; tweenTo(tile, hovered === tile.index ? 1.04 : 1, 180); }
 });
