@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Vector3 } from '../vendor/three.module.js';
-import { STICK, REST_STICK, createStickDrop, stickClearance } from '../score-stick.js';
+import { Vector3, Quaternion } from '../vendor/three.module.js';
+import { STICK, REST_STICK, MAX_STICK_YAW, createStickDrop, stickClearance } from '../score-stick.js';
 import { createStickGeometries } from '../mahjong-3d.js';
 
 function random(seed) {
@@ -15,6 +15,8 @@ test('white tenbou preserves the reference 65:7:3 proportion and has one recesse
   assert.ok(Math.abs(size.x / size.y - 65 / 7) < .00001);
   assert.ok(Math.abs(size.z / size.y - 3 / 7) < .00001);
   assert.equal(geometries.stickDot.type, 'CylinderGeometry');
+  assert.equal(geometries.stickBody.parameters.options.bevelSegments, 3);
+  assert.ok(geometries.stickBody.parameters.options.bevelSize > 1);
   geometries.stickDot.computeBoundingBox();
   assert.ok(geometries.stickDot.boundingBox.max.z < STICK.thickness / 2);
   Object.values(geometries).forEach((geometry) => geometry.dispose());
@@ -50,4 +52,27 @@ test('repeated pickup connects to the previous resting pose; sampling order is i
   second.at(1500); second.at(-8); second.at(350);
   assert.deepEqual(second.at(600), saved);
   assert.notDeepEqual(first.at(360), second.at(360));
+});
+
+test('successive drops pin the same midpoint and vary heading within 15 degrees of the original state', () => {
+  const rng = random(93218), headings = new Set();
+  let rest = REST_STICK;
+  for (let index = 0; index < 80; index++) {
+    const drop = createStickDrop(rng, rest);
+    for (let time = 0; time <= drop.duration + 10; time += 12) {
+      const pose = drop.at(time);
+      assert.equal(pose.x, STICK.x); assert.equal(pose.y, STICK.y);
+      const axis = new Vector3(1, 0, 0).applyQuaternion(new Quaternion().fromArray(pose.quaternion));
+      assert.ok(Math.abs(Math.atan2(axis.y, axis.x)) <= MAX_STICK_YAW + .00001);
+    }
+    const q = drop.settled.quaternion;
+    assert.equal(q[0], 0); assert.equal(q[1], 0);
+    headings.add(Math.round(2 * Math.atan2(q[2], q[3]) * 180 / Math.PI));
+    rest = drop.settled;
+  }
+  assert.ok(headings.size > 20, 'Landing headings repeated rather than being newly sampled');
+  for (const sample of [0, 1]) {
+    const drop = createStickDrop(() => sample);
+    assert.ok(Math.abs(2 * Math.atan2(drop.settled.quaternion[2], drop.settled.quaternion[3])) <= Math.PI / 12 + .00001);
+  }
 });

@@ -11,5 +11,14 @@ export const REAL_SIZE = Object.freeze({
   control: Object.freeze({ width: 130 }),
 });
 export const mm = (value) => value * PIXELS_PER_MM;
-export const CONTROL = Object.freeze({ width: mm(REAL_SIZE.control.width), scale: mm(REAL_SIZE.control.width) / 940, bottom: 300 });
-export const controlPoint = (x, y) => ({ x: 960 + (x - 960) * CONTROL.scale, y: CONTROL.bottom + (y - 250) * CONTROL.scale });
+// Coordinates follow the user's 698 x 262 reference crop. The housing spans
+// x=7..689; keeping that width preserves the previously established mm scale.
+const controlScale = mm(REAL_SIZE.control.width) / 682;
+export const CONTROL = Object.freeze({
+  width: mm(REAL_SIZE.control.width), scale: controlScale,
+  left: 960 - 348 * controlScale, top: 0,
+  referenceWidth: 698, referenceHeight: 262,
+  visibleHeight: 262 * controlScale, bottom: 249 * controlScale,
+});
+export const controlPoint = (x, y) => ({ x: CONTROL.left + x * CONTROL.scale, y: y * CONTROL.scale });
+export const STICK_CENTER = Object.freeze(controlPoint(345, 195));

@@ -6,7 +6,7 @@ import { CONTROL } from './physical-layout.js';
 const $ = (id) => document.getElementById(id);
 const scene = $('scene'), board = $('board'), canvas = $('table');
 scene.style.setProperty('--console-scale', String(CONTROL.scale));
-scene.style.setProperty('--console-shift', `${CONTROL.bottom - 250}px`);
+scene.style.setProperty('--console-left', `${CONTROL.left}px`);
 const ctx = canvas.getContext('2d', { alpha: false });
 const FONT = '"Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif';
 const COLORS = { table: '#0B503D', back: '#2457B8', front: '#F4F0E6' };
@@ -15,7 +15,7 @@ const UNIT_NAMES = { A: '主图：观察与秩序', B: '简介：牌河视觉档
 let phase = 'loading', epoch = 0, waveEnd = 0, waveTarget = 'front';
 let hovered = null, pressed = null;
 let raf = 0, pixelScale = 1, orderCounter = 0;
-let mahjong;
+let mahjong, consoleImage;
 let stickDrop = null, stickEpoch = 0, restingStick = REST_STICK;
 const tiles = Array.from({ length: 18 }, (_, index) => ({
   index, ...center(index), unit: UNIT_IDS[index], fragment: null, tween: null, flip: null, order: index,
@@ -104,35 +104,10 @@ function drawConsole() {
   const context = background.context;
   context.clearRect(0, 0, 1920, 1080);
   context.fillStyle = COLORS.table; context.fillRect(0, 0, 1920, 1080);
-  context.save();
-  context.translate(960, CONTROL.bottom); context.scale(CONTROL.scale, CONTROL.scale); context.translate(-960, -250);
-  context.fillStyle = '#073d2e';
-  context.beginPath(); context.moveTo(444, 0); context.lineTo(490, 44); context.lineTo(490, 0); context.fill();
-  context.beginPath(); context.moveTo(1430, 0); context.lineTo(1430, 44); context.lineTo(1476, 0); context.fill();
-  roundRect(context, 490, -690, 940, 940, 28, '#666e68', '#223b31');
-  const metal = context.createLinearGradient(490, 0, 1430, 250);
-  metal.addColorStop(0, '#b2b6af'); metal.addColorStop(.24, '#c5c8bf');
-  metal.addColorStop(.63, '#b9bbb6'); metal.addColorStop(1, '#9fa79e');
-  roundRect(context, 495, -685, 930, 930, 25, metal, '#d3d6cb');
-  roundRect(context, 510, -674, 900, 906, 20, null, '#a5ada2');
-  roundRect(context, 558, -620, 804, 802, 22, '#151c20', '#69716d');
-  roundRect(context, 563, -616, 794, 793, 18, null, '#080e12');
-  context.fillStyle = '#394347';
-  for (let y = 9; y < 163; y += 18) for (let x = 579; x < 1351; x += 18) {
-    context.fillRect(x, y, .9, .9);
-  }
-  // Only the lower rim of the central dice window enters the composition.
-  context.beginPath(); context.ellipse(960, -50, 155, 100, 0, 0, Math.PI * 2);
-  context.fillStyle = '#737c74'; context.fill();
-  context.beginPath(); context.ellipse(960, -53, 147, 94, 0, 0, Math.PI * 2);
-  context.fillStyle = '#bdc1b5'; context.fill();
-  context.beginPath(); context.ellipse(960, -57, 132, 78, 0, 0, Math.PI * 2);
-  context.fillStyle = '#939d91'; context.fill();
-  // Widen the slot for the correctly scaled 7 mm white stick, keeping its center.
-  roundRect(context, 624, 164, 672, 76, 27, '#979f94');
-  roundRect(context, 634, 168, 652, 68, 23, '#bcc2b5');
-  roundRect(context, 658, 171, 604, 62, 14, '#647266');
-  context.restore();
+  // The asset's viewBox is the exact visible reference crop; no upper half of
+  // the housing exists outside it. Native buttons use the same coordinates.
+  context.drawImage(consoleImage, CONTROL.left, CONTROL.top,
+    CONTROL.referenceWidth * CONTROL.scale, CONTROL.visibleHeight);
 }
 
 function resize() {
@@ -275,7 +250,7 @@ function finishFlip() {
     : '十八张蓝背牌，六列三行。点击任意一张揭示全部内容。');
   board.setAttribute('aria-busy', 'false');
   $('status').textContent = phase === 'front'
-    ? '档案已展开。点击上方重置，从左上角翻回蓝背。'
+    ? '档案已展开。点击上方黄色灯，从左上角翻回蓝背。'
     : '牌河已重置。点击任意一张蓝背牌，可以再次揭示。';
 }
 
@@ -339,7 +314,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) requ
 async function initialize() {
   createHitTargets();
   await document.fonts.ready;
-  await buildTextures();
+  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg').then((image) => { consoleImage = image; })]);
   mahjong = new Mahjong3D($('mahjong'), tiles);
   epoch = performance.now();
   phase = 'entry';

@@ -43,8 +43,8 @@ export function createTileGeometries() {
 }
 
 export function createStickGeometries() {
-  const bevel = mm(1 / 7), x = -STICK.length / 2 + bevel, y = -STICK.width / 2 + bevel;
-  const w = STICK.length - bevel * 2, h = STICK.width - bevel * 2, r = mm(2 / 7);
+  const bevel = mm(.25), x = -STICK.length / 2 + bevel, y = -STICK.width / 2 + bevel;
+  const w = STICK.length - bevel * 2, h = STICK.width - bevel * 2, r = mm(.8);
   const shape = new THREE.Shape();
   shape.moveTo(x + r, y); shape.lineTo(x + w - r, y);
   shape.quadraticCurveTo(x + w, y, x + w, y + r);
@@ -54,7 +54,7 @@ export function createStickGeometries() {
   const pipRadius = mm(6.5 / 7);
   const pip = new THREE.Path(); pip.absarc(0, 0, pipRadius, 0, Math.PI * 2, true); shape.holes.push(pip);
   const depth = STICK.thickness - 2 * bevel;
-  const body = new THREE.ExtrudeGeometry(shape, { depth, steps: 1, curveSegments: 12, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 1 });
+  const body = new THREE.ExtrudeGeometry(shape, { depth, steps: 1, curveSegments: 12, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 3 });
   body.translate(0, 0, -depth / 2);
   // The single red pip sits inside the molded recess, on both broad faces.
   const dot = new THREE.CylinderGeometry(pipRadius, pipRadius, depth, 32); dot.rotateX(Math.PI / 2);

@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="698" height="262" viewBox="0 0 698 262">
+  <defs>
+    <linearGradient id="plastic" x1="0" y1="0" x2="1" y2=".4">
+      <stop stop-color="#73717c"/><stop offset=".14" stop-color="#88838e"/>
+      <stop offset=".5" stop-color="#787581"/><stop offset="1" stop-color="#53525c"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#96919d"/><stop offset=".85" stop-color="#77717d"/><stop offset="1" stop-color="#373940"/>
+    </linearGradient>
+    <linearGradient id="slot" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#383941"/><stop offset=".19" stop-color="#4b4b57"/>
+      <stop offset=".5" stop-color="#64616f"/><stop offset=".8" stop-color="#696775"/><stop offset="1" stop-color="#4c4b56"/>
+    </linearGradient>
+    <linearGradient id="chrome" x1="0" y1="0" x2=".1" y2="1">
+      <stop stop-color="#f8f9fc"/><stop offset=".7" stop-color="#ffffff"/><stop offset="1" stop-color="#b8b9c1"/>
+    </linearGradient>
+    <linearGradient id="yellowTriangle" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#f7ef54"/><stop offset="1" stop-color="#cfb32d"/>
+    </linearGradient>
+    <linearGradient id="orangeTriangle" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#ffd05f"/><stop offset="1" stop-color="#ef8f3f"/>
+    </linearGradient>
+    <radialGradient id="blue" cx=".36" cy=".35" r=".7">
+      <stop stop-color="#faffff"/><stop offset=".25" stop-color="#d4ffff"/><stop offset=".5" stop-color="#64fffe"/>
+      <stop offset=".74" stop-color="#00d8ee"/><stop offset="1" stop-color="#0786c0"/>
+    </radialGradient>
+    <radialGradient id="yellow" cx=".5" cy=".45" r=".65">
+      <stop stop-color="#ffffff"/><stop offset=".45" stop-color="#ffffe3"/><stop offset=".7" stop-color="#fff651"/><stop offset="1" stop-color="#eabc36"/>
+    </radialGradient>
+    <filter id="grain" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".78" numOctaves="3" seed="23" result="noise"/>
+      <feColorMatrix in="noise" type="saturate" values="0"/>
+      <feComponentTransfer><feFuncR type="linear" slope=".5" intercept=".25"/><feFuncG type="linear" slope=".5" intercept=".25"/><feFuncB type="linear" slope=".5" intercept=".25"/></feComponentTransfer>
+      <feComposite in2="SourceGraphic" operator="in"/>
+      <feBlend in="SourceGraphic" mode="soft-light"/>
+    </filter>
+    <filter id="soft" x="-25%" y="-25%" width="150%" height="150%"><feGaussianBlur stdDeviation="2.4"/></filter>
+    <filter id="glow" x="-50%" y="-70%" width="200%" height="240%"><feGaussianBlur stdDeviation="5"/></filter>
+    <pattern id="speckles" width="27" height="24" patternUnits="userSpaceOnUse">
+      <rect width="27" height="24" fill="#393840"/>
+      <ellipse cx="5" cy="5" rx="3.1" ry="1.8" fill="#8b7c93" opacity=".62"/>
+      <ellipse cx="18" cy="16" rx="3.1" ry="1.8" fill="#746e85" opacity=".68"/>
+      <ellipse cx="25" cy="4" rx="1.2" ry=".7" fill="#c0a49c" opacity=".35"/>
+    </pattern>
+    <clipPath id="housingClip"><path d="M8-440H688V230Q688 248 669 249H26Q8 249 7 232Z"/></clipPath>
+    <clipPath id="panelClip"><path d="M94-350H599V108Q599 151 555 154H140Q94 151 94 109Z"/></clipPath>
+  </defs>
+  <!-- Exactly the visible lower crop, including its underside shadow. -->
+  <path d="M12 236H685L693 262H5Z" fill="#071b20" opacity=".8" filter="url(#soft)"/>
+  <path d="M17 241H681V251Q677 258 656 259H43Q18 258 17 251Z" fill="#030b0c" filter="url(#soft)"/>
+  <g clip-path="url(#housingClip)">
+    <rect x="7" y="-440" width="682" height="690" fill="url(#plastic)" filter="url(#grain)"/>
+    <path d="M9-200V231Q10 247 27 247H668Q684 246 685 230V-200" fill="none" stroke="url(#edge)" stroke-width="6"/>
+    <path d="M31-220H82V76Q82 103 55 105Q31 105 30 79Z" fill="#474652"/>
+    <path d="M37-220H75V77Q75 96 56 97Q38 97 38 77Z" fill="url(#slot)" stroke="#82808b" stroke-width="1.4"/>
+    <path d="M617-220H668V76Q668 104 641 106Q617 105 617 79Z" fill="#474652"/>
+    <path d="M623-220H661V77Q661 96 642 97Q624 97 624 77Z" fill="url(#slot)" stroke="#82808b" stroke-width="1.4"/>
+    <path d="M93-350H600V110Q600 155 554 157H139Q92 155 92 110Z" fill="#24232c" stroke="#919099" stroke-width="1.8"/>
+    <g clip-path="url(#panelClip)">
+      <rect x="94" y="-350" width="505" height="506" fill="url(#speckles)"/>
+      <rect x="94" y="-350" width="505" height="506" fill="#514b55" opacity=".2" filter="url(#grain)"/>
+    </g>
+    <!-- Only the bottom tips of the metal dice surround enter the crop. -->
+    <path d="M186-30H510V0L488 13L465 18L458 51L449 60L347 47L241 61L231 51L226 20L204 15L190 6Z" fill="#20212a"/>
+    <path d="M191-30H505V-1Q502 8 482 11L462 17L455 47Q454 55 447 55Q398 39 347 39Q294 40 243 55Q237 56 236 47L232 18L208 12Q197 10 194 2Z" fill="url(#chrome)" stroke="#b0b0ba" stroke-width="1.2"/>
+    <ellipse cx="347" cy="-55" rx="94" ry="76" fill="#6e6a78"/>
+    <ellipse cx="347" cy="-58" rx="87" ry="74" fill="#787580"/>
+    <!-- Start-dealer and continuation triangles, with the photographed lettering. -->
+    <path d="M117 63Q116 63 116 70L116 127Q116 134 123 134H183Z" fill="#26252b" stroke="#77747b" stroke-width="2"/>
+    <path d="M118 68L118 126Q118 132 124 132H178Z" fill="url(#yellowTriangle)" stroke="#fffef3" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M132 52H189Q198 52 198 61V117Z" fill="url(#orangeTriangle)" stroke="#fffff4" stroke-width="5" stroke-linejoin="round"/>
+    <g fill="#3f3531" font-family="Noto Sans CJK JP,Noto Sans CJK SC,sans-serif" font-size="15" font-weight="600">
+      <text x="129" y="105" transform="rotate(45 129 105)">起家</text>
+      <text x="153" y="73" transform="rotate(45 153 73)">連荘</text>
+    </g>
+    <!-- East marker. -->
+    <rect x="237" y="103" width="45" height="44" rx=".6" fill="#b4aeb9"/>
+    <rect x="241" y="107" width="37" height="36" fill="#eeedf1"/>
+    <text x="259.5" y="136" text-anchor="middle" font-family="Noto Serif CJK JP,Noto Serif CJK SC,serif" font-size="32" fill="#47444b">東</text>
+    <!-- Warm oval lamp and cyan circular lamp. These remain flat 2D artwork. -->
+    <ellipse cx="348" cy="124" rx="58" ry="29" fill="#f9bd3d" opacity=".8" filter="url(#glow)"/>
+    <ellipse cx="348" cy="124" rx="55" ry="28" fill="#74664f" stroke="#b29367" stroke-width="2"/>
+    <ellipse cx="348" cy="123" rx="51" ry="25" fill="url(#yellow)" stroke="#fffedb" stroke-width="2"/>
+    <ellipse cx="347" cy="124" rx="7" ry="24" fill="#fff92f" opacity=".35" filter="url(#soft)"/>
+    <circle cx="532" cy="88" r="36" fill="#214651" stroke="#85868e" stroke-width="2"/>
+    <circle cx="532" cy="88" r="32" fill="url(#blue)" stroke="#f4ffff" stroke-width="3"/>
+    <ellipse cx="520" cy="76" rx="13" ry="10" fill="#f0ffff" opacity=".65" filter="url(#soft)"/>
+    <text x="466" y="82" transform="rotate(-45 466 82)" font-family="Arial,sans-serif" font-size="24" font-style="italic" font-weight="700" fill="#f0edf2">AMOS</text>
+    <!-- Recessed riichi-stick channel. -->
+    <rect x="146" y="168" width="400" height="56" rx="28" fill="#45434d" opacity=".45" filter="url(#soft)"/>
+    <rect x="148" y="170" width="395" height="53" rx="26.5" fill="url(#slot)" stroke="#74727d" stroke-width="1.3"/>
+    <path d="M174 172H516Q539 172 540 193" fill="none" stroke="#30333c" stroke-width="3" opacity=".55" filter="url(#soft)"/>
+    <path d="M170 217H520" fill="none" stroke="#98909e" stroke-width="2" opacity=".35" filter="url(#soft)"/>
+  </g>
+</svg>

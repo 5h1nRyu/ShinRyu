@@ -1,9 +1,10 @@
 import { Euler, Quaternion, Vector3 } from './vendor/three.module.js';
 import { smooth } from './geometry.js';
-import { REAL_SIZE, mm, controlPoint } from './physical-layout.js';
+import { REAL_SIZE, mm, STICK_CENTER } from './physical-layout.js';
 
 // The same millimeter conversion as the tiles and 2D control box.
-export const STICK = Object.freeze({ length: mm(REAL_SIZE.stick.length), width: mm(REAL_SIZE.stick.width), thickness: mm(REAL_SIZE.stick.thickness), x: 960, y: -controlPoint(960, 202).y });
+export const STICK = Object.freeze({ length: mm(REAL_SIZE.stick.length), width: mm(REAL_SIZE.stick.width), thickness: mm(REAL_SIZE.stick.thickness), x: STICK_CENTER.x, y: -STICK_CENTER.y });
+export const MAX_STICK_YAW = Math.PI / 12;
 export const REST_STICK = Object.freeze({ x: STICK.x, y: STICK.y, z: STICK.thickness / 2, quaternion: Object.freeze([0, 0, 0, 1]) });
 const STEP = 1 / 240, PICKUP = 360, GRAVITY = 1600;
 const corners = [];
@@ -32,11 +33,14 @@ function mix(a, b, t) {
 // angular inertia. Precomputing keeps frame drops and blur samples deterministic.
 export function createStickDrop(random = Math.random, start = REST_STICK) {
   const sign = random() < .5 ? -1 : 1;
-  const rotation = new Euler((random() * .16 + .09) * sign, (random() * .16 + .11) * -sign, (random() - .5) * .035, 'XYZ');
+  // Each release chooses its own heading around the original horizontal state,
+  // rather than adding a rotation to the previous landing.
+  const landingYaw = (random() * 2 - 1) * MAX_STICK_YAW;
+  const rotation = new Euler((random() * .12 + .09) * sign, (random() * .14 + .11) * -sign, landingYaw, 'ZYX');
   const launch = { x: STICK.x, y: STICK.y, z: 132 + random() * 20, quaternion: new Quaternion().setFromEuler(rotation).toArray() };
   const position = new Vector3(launch.x, launch.y, launch.z);
   const orientation = new Quaternion().fromArray(launch.quaternion);
-  const velocity = new Vector3(), omega = new Vector3(.25 * sign, -.2 * sign, (random() - .5) * .02);
+  const velocity = new Vector3(), omega = new Vector3(.25 * sign, -.2 * sign, 0);
   const momentum = omega.clone().applyQuaternion(orientation.clone().invert()).multiply(inertia).applyQuaternion(orientation);
   const frames = [launch], impacts = [];
   let quiet = 0;
@@ -48,6 +52,10 @@ export function createStickDrop(random = Math.random, start = REST_STICK) {
     omega.copy(inverseInertia(momentum));
     const spin = omega.length();
     if (spin > 0) orientation.premultiply(new Quaternion().setFromAxisAngle(omega.clone().divideScalar(spin), spin * STEP)).normalize();
+    // Midpoint and in-plane heading are constrained; the ends can still rock,
+    // collide and rebound in 3D. This prevents any accumulated lateral drift.
+    const tilt = new Euler().setFromQuaternion(orientation, 'ZYX');
+    orientation.setFromEuler(new Euler(tilt.x, tilt.y, landingYaw, 'ZYX'));
     const contacts = corners.map((corner) => corner.clone().applyQuaternion(orientation));
     const minimum = Math.min(...contacts.map((contact) => contact.z + position.z));
     const contact = minimum < .15;
@@ -73,8 +81,7 @@ export function createStickDrop(random = Math.random, start = REST_STICK) {
         if (slipSpeed > .0001) {
           const tangent = slip.divideScalar(slipSpeed);
           const tangentArm = arm.clone().cross(tangent);
-          const friction = Math.min(impulse * .55, slipSpeed / (1 + inverseInertia(tangentArm).dot(tangentArm)));
-          velocity.addScaledVector(tangent, -friction);
+          const friction = Math.min(impulse * .55, slipSpeed / Math.max(.00001, inverseInertia(tangentArm).dot(tangentArm)));
           momentum.addScaledVector(tangentArm, -friction);
           omega.copy(inverseInertia(momentum));
         }
@@ -82,8 +89,7 @@ export function createStickDrop(random = Math.random, start = REST_STICK) {
           impacts.push({ time: step * STEP, speed: -contactVelocity.z, end: Math.sign(arm.x) });
         }
       }
-      // Tangential contact loses energy without a visual settling tween.
-      velocity.x *= .75; velocity.y *= .75;
+      // Contact damping dissipates the remaining rotational energy.
       momentum.multiplyScalar(.975); omega.copy(inverseInertia(momentum));
     }
     frames.push(snapshot());
@@ -92,7 +98,7 @@ export function createStickDrop(random = Math.random, start = REST_STICK) {
   }
   const final = frames.at(-1);
   // Contact tolerance leaves less than a fraction of a design pixel of movement.
-  const settled = { ...final, z: STICK.thickness / 2, quaternion: new Quaternion().setFromEuler(new Euler(0, 0, new Euler().setFromQuaternion(orientation).z)).toArray() };
+  const settled = { ...final, x: STICK.x, y: STICK.y, z: STICK.thickness / 2, quaternion: new Quaternion().setFromEuler(new Euler(0, 0, landingYaw, 'ZYX')).toArray() };
   frames.push(settled);
   const duration = PICKUP + (frames.length - 1) * STEP * 1000;
   return {

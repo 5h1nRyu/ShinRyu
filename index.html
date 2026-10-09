@@ -16,16 +16,13 @@
         <div id="board" aria-label="麻将桌上的视觉档案" aria-busy="true">
           <canvas id="table" width="1920" height="1080" aria-hidden="true"></canvas>
           <canvas id="mahjong" width="1116" height="1040" aria-hidden="true"></canvas>
-          <header class="console" aria-label="档案导航">
-            <button id="reset" class="mechanical reset" type="button" aria-label="重置：从左上角波纹翻回蓝背" disabled>
-              <span class="button-top"></span><span class="button-label">重置</span>
+          <header class="console" aria-label="麻将桌控制盒">
+            <button id="reset" class="mechanical reset" type="button" aria-label="黄色灯重置：从左上角波纹翻回蓝背" disabled>
+              <span class="button-top" aria-hidden="true"></span>
             </button>
-            <button id="about" class="mechanical about" type="button" aria-label="关于（暂未启用）" disabled>
-              <span class="button-top"></span><span class="button-label">关于</span>
-            </button>
-            <button id="contact" class="mechanical contact" type="button" aria-label="联系（暂未启用）" disabled>
-              <span class="button-top"></span><span class="button-label">联系</span>
-            </button>
+            <button id="dealer" class="mechanical dealer" type="button" aria-label="起家（暂未启用）" disabled></button>
+            <button id="streak" class="mechanical streak" type="button" aria-label="连庄（暂未启用）" disabled></button>
+            <button id="blue-light" class="mechanical blue-light" type="button" aria-label="蓝色灯（暂未启用）" disabled></button>
             <h1 class="sr-only">牌河视觉档案</h1>
           </header>
           <button id="score-stick" class="stick-hit" type="button" aria-label="白色千点棒：点击拿起并掉落" aria-busy="false" data-motion="idle" disabled></button>

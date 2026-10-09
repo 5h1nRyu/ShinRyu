@@ -21,37 +21,25 @@ button:focus-visible, a:focus-visible { outline: 2px solid #f4f0e6; outline-offs
 }
 .stick-hit[aria-busy="true"] { cursor: default; }
 .console {
-  position: absolute; inset: 0; z-index: 30; pointer-events: none;
-  transform-origin: 960px 250px;
-  transform: translateY(var(--console-shift)) scale(var(--console-scale));
+  position: absolute; left: var(--console-left); top: 0; width: 698px; height: 262px;
+  z-index: 30; pointer-events: none; transform-origin: 0 0;
+  transform: scale(var(--console-scale));
 }
 .console .mechanical { pointer-events: auto; }
-.mechanical { position: absolute; border: 0; padding: 0; background: none; color: #c5c8b7; z-index: 30; }
+.mechanical { position: absolute; border: 0; padding: 0; background: none; z-index: 30; touch-action: manipulation; }
 .mechanical:disabled { cursor: default; }
-.mechanical .button-top { display: block; position: absolute; transition: filter 160ms ease-in-out, transform 60ms ease-in-out, box-shadow 60ms ease-in-out; }
-.mechanical:not(:disabled):hover .button-top { filter: brightness(1.08); transition-duration: 120ms; }
-.mechanical:not(:disabled):active .button-top { transform: translateY(2px); }
-.button-label { position: absolute; font-size: 16px; letter-spacing: 2px; }
-.reset { left: 906px; top: 53px; width: 108px; height: 91px; border-radius: 40px; }
+.reset { left: 293px; top: 97px; width: 110px; height: 55px; border-radius: 50%; }
 .reset .button-top {
-  inset: 2px 2px auto; height: 48px; border-radius: 50%; border: 2px solid #f0d28a;
-  background: linear-gradient(180deg, #ddbd62, #c59a32); box-shadow: 0 4px 0 #795b21, 0 6px 0 #0b1113;
+  display: block; position: absolute; inset: 2px 4px 3px; border-radius: 50%;
+  background: linear-gradient(90deg, transparent 42%, #fff50045 49%, #ffef0050 52%, transparent 59%), radial-gradient(ellipse at 50% 45%, #fff 0%, #fff 52%, #ffffdb 72%, #ffe932 95%);
+  border: 2px solid #fffad3; box-shadow: 0 0 3px #ffc23d;
+  transition: filter 160ms ease-in-out, transform 60ms ease-in-out, box-shadow 60ms ease-in-out;
 }
-.reset .button-label { top: 60px; left: 0; width: 108px; }
-.about { left: 1213px; top: 51px; width: 74px; height: 103px; border-radius: 38px; }
-.about .button-top {
-  inset: 2px 2px auto; height: 70px; border-radius: 50%; border: 2px solid #a0b7b6;
-  background: radial-gradient(circle at 46% 42%, #d0e0ce 0 42%, #238cba 44%, #087195 72%);
-  box-shadow: 0 4px 0 #084663, 0 6px 0 #0b1113;
-}
-.about .button-label { top: 81px; left: 0; width: 74px; }
-.contact { left: 606px; top: 60px; width: 96px; height: 101px; }
-.contact .button-top {
-  inset: 4px 4px auto; width: 88px; height: 88px; clip-path: polygon(0 0, 100% 100%, 0 100%);
-  background: linear-gradient(135deg, #f0cb72, #c99b37); border-left: 2px solid #ecd79c;
-}
-.contact .button-label { top: 63px; left: 14px; font-size: 14px; color: #493c1d; }
-.mechanical:not(:disabled):active .button-top { box-shadow: 0 2px 0 #463d29; }
+.reset:not(:disabled):hover .button-top { filter: brightness(1.08); transition-duration: 120ms; }
+.reset:not(:disabled):active .button-top { transform: translateY(2px); box-shadow: 0 1px 2px #8b6f30; }
+.dealer { left: 114px; top: 65px; width: 72px; height: 72px; clip-path: polygon(0 0, 100% 100%, 0 100%); }
+.streak { left: 128px; top: 49px; width: 73px; height: 73px; clip-path: polygon(0 0, 100% 0, 100% 100%); }
+.blue-light { left: 495px; top: 51px; width: 74px; height: 74px; border-radius: 50%; }
 .tile-hit {
   position: absolute; border: 0; padding: 0; background: transparent; border-radius: 8px;
   touch-action: manipulation; outline-offset: 0; user-select: none;
