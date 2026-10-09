@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { flipPose, rippleDelay } from '../geometry.js';
-import { flipAt, settleFlips, revealTile, resetTiles } from '../tile-interactions.js';
+import { RESET_PAUSE, flipAt, settleFlips, revealTile, resetTiles } from '../tile-interactions.js';
 
 const makeTiles = () => Array.from({ length: 18 }, (_, index) => ({ index, front: false, flips: [], tween: null }));
 const rest = { q: 1, height: 0 };
@@ -25,22 +25,24 @@ test('a click reveals just its tile; other backs can be revealed concurrently an
   assert.deepEqual(tiles[8], before);
 });
 
-test('the second wave starts immediately when the first check reaches the bottom right', () => {
+test('the second wave waits 500 ms after the first check reaches the bottom right', () => {
+  assert.equal(RESET_PAUSE, 500);
   const tiles = makeTiles();
   const cycle = resetTiles(tiles, 1000, tiles.map(() => rest));
-  assert.deepEqual(cycle, { reverseStart: 1600, end: 2800 });
+  assert.deepEqual(cycle, { checkEnd: 1600, reverseStart: 2100, end: 3300 });
   assert.equal(tiles[17].flips[0].start, 1600);
-  assert.equal(tiles[0].flips[1].start, 1600);
-  // Both waves can be moving, but a tile never reverses before its reveal finishes.
+  assert.equal(tiles[0].flips[1].start, 2100);
+  assert.deepEqual(pose(tiles[0], 1600), { theta: Math.PI, q: 1, height: 0 });
+  assert.deepEqual(pose(tiles[0], 2099), { theta: Math.PI, q: 1, height: 0 });
   for (const tile of tiles) {
     const [reveal, conceal] = tile.flips;
     assert.equal(reveal.fromFront, false); assert.equal(conceal.fromFront, true);
-    assert.equal(conceal.start - reveal.start, 600);
+    assert.equal(conceal.start - reveal.start, 1100);
     assert.deepEqual(pose(tile, conceal.start), { theta: Math.PI, q: 1, height: 0 });
     assert.ok(Math.abs(pose(tile, conceal.start - .001).theta - Math.PI) < .00001);
   }
-  assert.ok(pose(tiles[0], 1900).theta > 0 && pose(tiles[0], 1900).theta < Math.PI);
-  assert.ok(pose(tiles[17], 1900).theta > 0 && pose(tiles[17], 1900).theta < Math.PI);
+  assert.ok(pose(tiles[0], 2400).theta > 0 && pose(tiles[0], 2400).theta < Math.PI);
+  assert.equal(pose(tiles[17], 2400).theta, Math.PI);
   for (const tile of tiles) settleFlips(tile, cycle.end);
   assert.ok(tiles.every((tile) => !tile.front && tile.flips.length === 0));
 });
@@ -69,7 +71,7 @@ test('reset during a clicked reveal preserves its pose and finishes it before th
   const cycle = resetTiles(tiles, 180, tiles.map((tile) => pose(tile, 180)));
   assert.deepEqual(tiles[0].flips[0], current);
   assert.deepEqual(pose(tiles[0], 180), before);
-  assert.equal(tiles[0].flips[1].start, 780);
+  assert.equal(tiles[0].flips[1].start, 1280);
   assert.equal(pose(tiles[0], 700).theta, Math.PI);
   for (const tile of tiles) settleFlips(tile, cycle.end);
   assert.ok(tiles.every((tile) => !tile.front));

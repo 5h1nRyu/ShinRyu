@@ -1,7 +1,9 @@
 import { smooth, center, entryScale, flipPose, motionDistance } from './geometry.js';
-import { Mahjong3D } from './mahjong-3d.js?v=20261010-interactions';
-import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261010-interactions';
-import { flipAt, settleFlips, revealTile, resetTiles } from './tile-interactions.js?v=20261010-interactions';
+import { Mahjong3D } from './mahjong-3d.js?v=20261010-riichi';
+import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261010-riichi';
+import { flipAt, settleFlips, revealTile, resetTiles } from './tile-interactions.js?v=20261010-riichi';
+import { RIICHI_FACES, nextRiichiFace } from './riichi-faces.js?v=20261010-riichi';
+import { drawTableSeams } from './table-surface.js?v=20261010-riichi';
 import { CONTROL } from './physical-layout.js';
 
 const $ = (id) => document.getElementById(id);
@@ -17,6 +19,7 @@ let phase = 'loading', epoch = 0, resetCycle = null;
 let hovered = null, pressed = null;
 let raf = 0, pixelScale = 1, orderCounter = 0;
 let mahjong, consoleImage;
+const riichiImages = new Map();
 const CONTROL_HINTS = { dealer: 'github', streak: 'bilibili', reset: '重置', 'blue-light': '探索' };
 let hoveredControl = null, focusedControl = null;
 let stickDrop = null, stickEpoch = 0, restingStick = REST_STICK;
@@ -59,7 +62,10 @@ async function loadImage(url) {
 }
 
 async function buildTextures() {
-  const art = await loadImage('./assets/artwork.svg');
+  const [art] = await Promise.all([
+    loadImage('./assets/artwork.svg'),
+    Promise.all(RIICHI_FACES.map(async (face) => riichiImages.set(face.code, await loadImage(face.image)))),
+  ]);
   const units = {};
   for (const [id, width, height] of [['A', 500, 452], ['B', 500, 224], ['C', 332, 224], ['D', 164, 224], ['E', 332, 224], ['F', 332, 224], ['G', 332, 224]]) {
     units[id] = makeTexture(width, height);
@@ -101,12 +107,27 @@ async function buildTextures() {
     back.context.beginPath(); back.context.moveTo(15, y); back.context.lineTo(149, y); back.context.stroke();
   }
   for (const tile of tiles) tile.back = back.element;
+  changeRiichiFace();
+}
+
+function changeRiichiFace() {
+  const tile = tiles[17];
+  tile.riichiFace = nextRiichiFace(tile.riichiFace?.code);
+  const context = tile.fragment.getContext('2d');
+  context.clearRect(0, 0, 164, 224);
+  roundRect(context, 0, 0, 164, 224, 8, COLORS.front);
+  context.drawImage(riichiImages.get(tile.riichiFace.code), 0, 0, 164, 224);
+  roundRect(context, 1, 1, 162, 222, 7, null, '#fbf7ed');
+  mahjong?.updateTileFront(17);
+  tile.button.dataset.riichiFace = tile.riichiFace.code;
+  updateTileLabel(tile);
 }
 
 function drawConsole() {
   const context = background.context;
   context.clearRect(0, 0, 1920, 1080);
   context.fillStyle = COLORS.table; context.fillRect(0, 0, 1920, 1080);
+  drawTableSeams(context);
   // The asset's viewBox is the exact visible reference crop; no upper half of
   // the housing exists outside it. Native buttons use the same coordinates.
   context.drawImage(consoleImage, CONTROL.left, CONTROL.top,
@@ -199,9 +220,13 @@ function render(time) {
     $('stick-status').textContent = '点棒已落定，可再次点击拿起。';
   }
   $('score-stick').dataset.motion = stickDrop ? time - stickEpoch < STICK_PICKUP_DURATION ? 'lifting' : 'falling' : 'idle';
-  if (resetCycle && phase === 'reset-reveal' && time >= resetCycle.reverseStart) {
+  if (resetCycle && phase === 'reset-reveal' && time >= resetCycle.checkEnd) {
+    phase = 'reset-wait';
+    $('status').textContent = '第一轮波纹已到达右下角，等待 0.5 秒后翻回蓝背。';
+  }
+  if (resetCycle && phase === 'reset-wait' && time >= resetCycle.reverseStart) {
     phase = 'reset-conceal';
-    $('status').textContent = '第一轮波纹已到达右下角，正在从左上角波纹翻回蓝背。';
+    $('status').textContent = '等待结束，正在从左上角波纹翻回蓝背。';
   }
   for (const tile of tiles) {
     if (settleFlips(tile, time)) {
@@ -214,6 +239,7 @@ function render(time) {
   }
   if (resetCycle && time >= resetCycle.end) {
     resetCycle = null; phase = 'idle'; $('reset').disabled = false;
+    changeRiichiFace();
     $('status').textContent = '牌河已重置。点击蓝背牌，可以再次逐张揭示。';
   }
   board.setAttribute('aria-busy', String(phase === 'entry' || Boolean(resetCycle) || tiles.some((tile) => tile.flips.length)));
@@ -265,7 +291,7 @@ function startReset() {
 }
 
 function updateTileLabel(tile) {
-  const label = tile.front ? UNIT_NAMES[tile.unit] : '揭示档案';
+  const label = tile.front ? tile.riichiFace?.label ?? UNIT_NAMES[tile.unit] : '揭示档案';
   tile.button.setAttribute('aria-label', `${label}，第${Math.floor(tile.index / 6) + 1}行第${tile.index % 6 + 1}列`);
   tile.button.setAttribute('aria-busy', String(Boolean(tile.flips.length)));
   tile.button.dataset.face = tile.front ? 'front' : 'back';
@@ -353,7 +379,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) requ
 async function initialize() {
   createHitTargets();
   await document.fonts.ready;
-  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261010-interactions').then((image) => { consoleImage = image; })]);
+  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261010-riichi').then((image) => { consoleImage = image; })]);
   mahjong = new Mahjong3D($('mahjong'), tiles);
   updateControlHint();
   epoch = performance.now();
