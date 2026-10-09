@@ -12,7 +12,8 @@ button { font: inherit; cursor: pointer; }
 button:focus-visible, a:focus-visible { outline: 2px solid #f4f0e6; outline-offset: 5px; }
 #viewport { position: fixed; inset: 0; overflow: hidden; }
 #scene { position: absolute; width: 1920px; height: 1080px; transform-origin: 0 0; opacity: 0; }
-#table, #board, #tiles { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+#board, #tiles { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+#table { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
 #mahjong { position: absolute; left: 420px; top: 0; width: 1116px; height: 1040px; }
 #table, #mahjong { pointer-events: none; }
 .stick-hit {

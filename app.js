@@ -1,9 +1,9 @@
 import { smooth, center, entryScale, flipPose, motionDistance } from './geometry.js';
-import { Mahjong3D } from './mahjong-3d.js?v=20261010-riichi';
-import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261010-riichi';
-import { flipAt, settleFlips, revealTile, resetTiles } from './tile-interactions.js?v=20261010-riichi';
-import { RIICHI_FACES, nextRiichiFace } from './riichi-faces.js?v=20261010-riichi';
-import { drawTableSeams } from './table-surface.js?v=20261010-riichi';
+import { Mahjong3D } from './mahjong-3d.js?v=20261010-table-inset';
+import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261010-table-inset';
+import { flipAt, settleFlips, revealTile, resetTiles } from './tile-interactions.js?v=20261010-table-inset';
+import { RIICHI_FACES, nextRiichiFace } from './riichi-faces.js?v=20261010-table-inset';
+import { drawTableSeams, tableLayout } from './table-surface.js?v=20261010-table-inset';
 import { CONTROL } from './physical-layout.js';
 
 const $ = (id) => document.getElementById(id);
@@ -26,8 +26,7 @@ let stickDrop = null, stickEpoch = 0, restingStick = REST_STICK;
 const tiles = Array.from({ length: 18 }, (_, index) => ({
   index, ...center(index), unit: UNIT_IDS[index], fragment: null, tween: null, front: false, flips: [], order: index,
 }));
-const background = { element: document.createElement('canvas') };
-background.context = background.element.getContext('2d');
+let tabletop;
 
 function roundRect(context, x, y, width, height, radius, fill, stroke) {
   if (width <= 0 || height <= 0) return;
@@ -116,7 +115,11 @@ function changeRiichiFace() {
   const context = tile.fragment.getContext('2d');
   context.clearRect(0, 0, 164, 224);
   roundRect(context, 0, 0, 164, 224, 8, COLORS.front);
-  context.drawImage(riichiImages.get(tile.riichiFace.code), 0, 0, 164, 224);
+  // Give each edge a 10% ivory gutter. The 164x224 texture is UV-mapped onto
+  // the 147x196 cap, preserving the artwork's 3:4 ratio on the physical tile.
+  const image = riichiImages.get(tile.riichiFace.code);
+  const inset = .1;
+  context.drawImage(image, 164 * inset, 224 * inset, 164 * (1 - inset * 2), 224 * (1 - inset * 2));
   roundRect(context, 1, 1, 162, 222, 7, null, '#fbf7ed');
   mahjong?.updateTileFront(17);
   tile.button.dataset.riichiFace = tile.riichiFace.code;
@@ -124,9 +127,8 @@ function changeRiichiFace() {
 }
 
 function drawConsole() {
-  const context = background.context;
-  context.clearRect(0, 0, 1920, 1080);
-  context.fillStyle = COLORS.table; context.fillRect(0, 0, 1920, 1080);
+  const context = ctx;
+  context.fillStyle = COLORS.table; context.fillRect(tabletop.left, 0, tabletop.width, tabletop.height);
   drawTableSeams(context);
   // The asset's viewBox is the exact visible reference crop; no upper half of
   // the housing exists outside it. Native buttons use the same coordinates.
@@ -136,18 +138,17 @@ function drawConsole() {
 
 function resize() {
   const width = window.innerWidth, height = window.innerHeight;
-  const scale = Math.min(width / 1920, height / 1080);
-  scene.style.left = `${(width - 1920 * scale) / 2}px`;
-  scene.style.top = `${(height - 1080 * scale) / 2}px`;
+  tabletop = tableLayout(width, height);
+  const { scale, sceneLeft, sceneTop } = tabletop;
+  scene.style.left = `${sceneLeft}px`;
+  scene.style.top = `${sceneTop}px`;
   scene.style.transform = `scale(${scale})`;
   pixelScale = Math.min(2, Math.max(.5, scale * (window.devicePixelRatio || 1)));
-  for (const element of [canvas, background.element]) {
-    element.width = Math.round(1920 * pixelScale); element.height = Math.round(1080 * pixelScale);
-  }
-  for (const context of [ctx, background.context]) {
-    context.setTransform(pixelScale, 0, 0, pixelScale, 0, 0);
-  }
-  drawConsole(); ctx.drawImage(background.element, 0, 0, 1920, 1080);
+  Object.assign(canvas.style, { left: `${tabletop.left}px`, top: '0px', width: `${tabletop.width}px`, height: `${tabletop.height}px` });
+  canvas.width = Math.ceil(tabletop.width * pixelScale);
+  canvas.height = Math.ceil(tabletop.height * pixelScale);
+  ctx.setTransform(pixelScale, 0, 0, pixelScale, -tabletop.left * pixelScale, 0);
+  drawConsole();
   mahjong?.resize(pixelScale); requestRender();
 }
 
@@ -379,7 +380,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) requ
 async function initialize() {
   createHitTargets();
   await document.fonts.ready;
-  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261010-riichi').then((image) => { consoleImage = image; })]);
+  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261010-table-inset').then((image) => { consoleImage = image; })]);
   mahjong = new Mahjong3D($('mahjong'), tiles);
   updateControlHint();
   epoch = performance.now();

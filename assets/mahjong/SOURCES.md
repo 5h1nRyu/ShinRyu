@@ -15,3 +15,11 @@ The other suit values 1–9 and the seven honors use the Regular set.
 136 tiles, with one red five each of characters, circles and bamboo replacing one
 regular five. The website samples from these copy counts, excluding the previous
 face so that each completed reset changes the visible design.
+
+Face spacing references (photographs are not distributed with the website):
+[AMOS BN tile fronts](https://www.alban.co.jp/products/detail/752),
+[original photograph](https://www.alban.co.jp/html/upload/save_image/0529113704_665694d05009f.jpg),
+and [AMOS SMART official product photograph](https://shop.taiyo-chemicals.co.jp/shopdetail/000000000030/).
+The canvas renderer fits each unchanged 3:4 SVG into 80% of the face and centers
+it on the ivory body, leaving a visible border. This is a visual adjustment from
+the photographs, not a manufacturer's published engraving dimension.
