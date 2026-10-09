@@ -7,8 +7,8 @@
     <meta name="description" content="牌河视觉档案：以十八张麻将牌收藏图像、文字与项目。点击一张牌，展开一段观察。">
     <title>牌河视觉档案 · ShinRyu</title>
     <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="./styles.css?v=2f52bad">
-    <script src="./app.js?v=2f52bad" type="module"></script>
+    <link rel="stylesheet" href="./styles.css?v=20261010-controls">
+    <script src="./app.js?v=20261010-controls" type="module"></script>
   </head>
   <body>
     <main id="viewport" aria-label="牌河视觉档案">
@@ -20,9 +20,9 @@
             <button id="reset" class="mechanical reset" type="button" aria-label="黄色灯重置：从左上角波纹翻回蓝背" disabled>
               <span class="button-top" aria-hidden="true"></span>
             </button>
-            <button id="dealer" class="mechanical dealer" type="button" aria-label="起家（暂未启用）" disabled></button>
-            <button id="streak" class="mechanical streak" type="button" aria-label="连庄（暂未启用）" disabled></button>
-            <button id="blue-light" class="mechanical blue-light" type="button" aria-label="蓝色灯（暂未启用）" disabled></button>
+            <a id="dealer" class="mechanical dealer" href="https://github.com/5h1nRyu" aria-label="github"></a>
+            <a id="streak" class="mechanical streak" href="https://space.bilibili.com/3546925661948276" aria-label="bilibili"></a>
+            <button id="blue-light" class="mechanical blue-light" type="button" aria-label="探索" aria-disabled="true"></button>
             <h1 class="sr-only">牌河视觉档案</h1>
           </header>
           <button id="score-stick" class="stick-hit" type="button" aria-label="白色千点棒：点击拿起并掉落" aria-busy="false" data-motion="idle" disabled></button>

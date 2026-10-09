@@ -1,6 +1,6 @@
 import { smooth, center, rippleDelay, entryScale, flipPose, motionDistance } from './geometry.js';
-import { Mahjong3D } from './mahjong-3d.js?v=2f52bad';
-import { REST_STICK, createStickDrop, stickMotionDistance } from './score-stick.js?v=2f52bad';
+import { Mahjong3D } from './mahjong-3d.js?v=20261010-controls';
+import { REST_STICK, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261010-controls';
 import { CONTROL } from './physical-layout.js';
 
 const $ = (id) => document.getElementById(id);
@@ -16,6 +16,8 @@ let phase = 'loading', epoch = 0, waveEnd = 0, waveTarget = 'front';
 let hovered = null, pressed = null;
 let raf = 0, pixelScale = 1, orderCounter = 0;
 let mahjong, consoleImage;
+const CONTROL_HINTS = { dealer: 'github', streak: 'bilibili', reset: '重置', 'blue-light': '探索' };
+let hoveredControl = null, focusedControl = null;
 let stickDrop = null, stickEpoch = 0, restingStick = REST_STICK;
 const tiles = Array.from({ length: 18 }, (_, index) => ({
   index, ...center(index), unit: UNIT_IDS[index], fragment: null, tween: null, flip: null, order: index,
@@ -294,6 +296,31 @@ function createHitTargets() {
   }
 }
 
+function updateControlHint() {
+  if (!mahjong) return;
+  mahjong.setStickHint(CONTROL_HINTS[hoveredControl ?? focusedControl] ?? '');
+  requestRender();
+}
+
+for (const id of Object.keys(CONTROL_HINTS)) {
+  const control = $(id);
+  control.addEventListener('pointerenter', (event) => {
+    if (event.pointerType === 'touch') return;
+    hoveredControl = id; updateControlHint();
+  });
+  const leave = () => { if (hoveredControl === id) hoveredControl = null; updateControlHint(); };
+  control.addEventListener('pointerleave', leave);
+  control.addEventListener('pointercancel', leave);
+  control.addEventListener('focus', () => {
+    focusedControl = control.matches(':focus-visible') ? id : null;
+    updateControlHint();
+  });
+  control.addEventListener('blur', () => {
+    if (focusedControl === id) focusedControl = null;
+    updateControlHint();
+  });
+}
+
 $('reset').addEventListener('click', () => {
   if (phase === 'front') startFlip(0, 'back');
 });
@@ -314,8 +341,9 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) requ
 async function initialize() {
   createHitTargets();
   await document.fonts.ready;
-  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=2f52bad').then((image) => { consoleImage = image; })]);
+  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261010-controls').then((image) => { consoleImage = image; })]);
   mahjong = new Mahjong3D($('mahjong'), tiles);
+  updateControlHint();
   epoch = performance.now();
   phase = 'entry';
   resize();

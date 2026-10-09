@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.module.js';
 import { SPEC } from './geometry.js';
 import { mm } from './physical-layout.js';
-import { STICK, REST_STICK } from './score-stick.js?v=2f52bad';
+import { STICK, REST_STICK } from './score-stick.js?v=20261010-controls';
 
 // Includes every lifted/rotated silhouette and the light's maximum projected shadow.
 export const VIEW = Object.freeze({ left: 420, top: 0, width: 1116, height: 1040 });
@@ -151,8 +151,26 @@ export class Mahjong3D {
     this.stick = new THREE.Group(); this.stick.name = 'white-tenbou-1000';
     const red = toon({ color: '#BB4337' }); this.materials.add(red);
     const body = new THREE.Mesh(this.geometries.stickBody, [white, core]); body.castShadow = true;
-    const dot = new THREE.Mesh(this.geometries.stickDot, red); dot.castShadow = true;
-    this.stick.add(body, dot); this.world.add(this.stick);
+    this.stickDot = new THREE.Mesh(this.geometries.stickDot, red); this.stickDot.castShadow = true;
+    // Cover the recessed pip with ivory while the hint replaces its red marking.
+    this.geometries.stickHintCover = new THREE.CircleGeometry(mm(6.5 / 7) + .1, 32);
+    this.stickHintCover = new THREE.Mesh(this.geometries.stickHintCover, white);
+    this.stickHintCover.position.z = STICK.thickness / 2 + .02;
+    this.stickHintCover.visible = false;
+    this.stickHintCanvas = document.createElement('canvas');
+    this.stickHintCanvas.width = 1024;
+    this.stickHintCanvas.height = Math.round(1024 * STICK.width / STICK.length);
+    this.stickHintTexture = texture(this.stickHintCanvas);
+    this.stickHintTexture.minFilter = THREE.LinearFilter;
+    this.stickHintTexture.generateMipmaps = false;
+    const hintMaterial = new THREE.MeshBasicMaterial({ map: this.stickHintTexture, transparent: true, depthWrite: false, toneMapped: false });
+    this.materials.add(hintMaterial);
+    this.geometries.stickHint = new THREE.PlaneGeometry(STICK.length, STICK.width);
+    this.stickHint = new THREE.Mesh(this.geometries.stickHint, hintMaterial);
+    this.stickHint.position.z = STICK.thickness / 2 + .04;
+    this.stickHint.visible = false;
+    this.stickHintText = '';
+    this.stick.add(body, this.stickDot, this.stickHintCover, this.stickHint); this.world.add(this.stick);
     this.applyStickPose(REST_STICK);
 
     // Only the actual light's shadow is drawn onto the unchanged 2D table canvas.
@@ -201,6 +219,36 @@ export class Mahjong3D {
       this.light.shadow.mapSize.set(resolution, resolution);
       this.light.shadow.map?.dispose(); this.light.shadow.map = null;
     }
+  }
+
+  setStickHint(text) {
+    if (text === this.stickHintText) return;
+    this.stickHintText = text;
+    this.stickDot.visible = !text;
+    this.stickHintCover.visible = this.stickHint.visible = Boolean(text);
+    if (!text) return;
+    const canvas = this.stickHintCanvas, context = canvas.getContext('2d');
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.font = `600 ${24 * canvas.width / STICK.length}px "Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif`;
+    context.fillStyle = '#000000'; context.textAlign = 'left'; context.textBaseline = 'alphabetic';
+    const metrics = context.measureText(text);
+    // Center the visible ink, including glyph overhangs and ascenders/descenders.
+    const x = (canvas.width + metrics.actualBoundingBoxLeft - metrics.actualBoundingBoxRight) / 2;
+    const y = (canvas.height + metrics.actualBoundingBoxAscent - metrics.actualBoundingBoxDescent) / 2;
+    context.fillText(text, x, y);
+    // Font rasterization can shift the ink by a pixel; center its actual footprint.
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let left = canvas.width, right = -1, top = canvas.height, bottom = -1;
+    for (let row = 0; row < canvas.height; row++) for (let column = 0; column < canvas.width; column++) {
+      if (pixels[(row * canvas.width + column) * 4 + 3] <= 128) continue;
+      left = Math.min(left, column); right = Math.max(right, column);
+      top = Math.min(top, row); bottom = Math.max(bottom, row);
+    }
+    if (right >= left) {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.fillText(text, x + (canvas.width - left - right - 1) / 2, y + (canvas.height - top - bottom - 1) / 2);
+    }
+    this.stickHintTexture.needsUpdate = true;
   }
 
   applyStickPose(pose) {
