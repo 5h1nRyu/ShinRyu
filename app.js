@@ -1,6 +1,6 @@
 import { smooth, center, rippleDelay, entryScale, flipPose, motionDistance } from './geometry.js';
-import { Mahjong3D } from './mahjong-3d.js';
-import { REST_STICK, createStickDrop, stickMotionDistance } from './score-stick.js';
+import { Mahjong3D } from './mahjong-3d.js?v=2f52bad';
+import { REST_STICK, createStickDrop, stickMotionDistance } from './score-stick.js?v=2f52bad';
 import { CONTROL } from './physical-layout.js';
 
 const $ = (id) => document.getElementById(id);
@@ -314,7 +314,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) requ
 async function initialize() {
   createHitTargets();
   await document.fonts.ready;
-  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg').then((image) => { consoleImage = image; })]);
+  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=2f52bad').then((image) => { consoleImage = image; })]);
   mahjong = new Mahjong3D($('mahjong'), tiles);
   epoch = performance.now();
   phase = 'entry';
