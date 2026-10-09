@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.module.js';
 import { SPEC } from './geometry.js';
 import { mm } from './physical-layout.js';
-import { STICK, REST_STICK } from './score-stick.js?v=20261010-controls';
+import { STICK, REST_STICK } from './score-stick.js?v=20261010-interactions';
 
 // Includes every lifted/rotated silhouette and the light's maximum projected shadow.
 export const VIEW = Object.freeze({ left: 420, top: 0, width: 1116, height: 1040 });

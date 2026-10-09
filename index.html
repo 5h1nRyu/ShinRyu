@@ -7,8 +7,8 @@
     <meta name="description" content="牌河视觉档案：以十八张麻将牌收藏图像、文字与项目。点击一张牌，展开一段观察。">
     <title>牌河视觉档案 · ShinRyu</title>
     <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="./styles.css?v=20261010-controls">
-    <script src="./app.js?v=20261010-controls" type="module"></script>
+    <link rel="stylesheet" href="./styles.css?v=20261010-interactions">
+    <script src="./app.js?v=20261010-interactions" type="module"></script>
   </head>
   <body>
     <main id="viewport" aria-label="牌河视觉档案">
@@ -17,16 +17,16 @@
           <canvas id="table" width="1920" height="1080" aria-hidden="true"></canvas>
           <canvas id="mahjong" width="1116" height="1040" aria-hidden="true"></canvas>
           <header class="console" aria-label="麻将桌控制盒">
-            <button id="reset" class="mechanical reset" type="button" aria-label="黄色灯重置：从左上角波纹翻回蓝背" disabled>
+            <button id="reset" class="mechanical reset" type="button" aria-label="黄色灯重置：从左上角波纹补齐翻开，再波纹翻回蓝背" disabled>
               <span class="button-top" aria-hidden="true"></span>
             </button>
-            <a id="dealer" class="mechanical dealer" href="https://github.com/5h1nRyu" aria-label="github"></a>
-            <a id="streak" class="mechanical streak" href="https://space.bilibili.com/3546925661948276" aria-label="bilibili"></a>
+            <a id="dealer" class="mechanical dealer" href="https://github.com/5h1nRyu" target="_blank" rel="noopener noreferrer" aria-label="github（新标签页打开）"></a>
+            <a id="streak" class="mechanical streak" href="https://space.bilibili.com/3546925661948276" target="_blank" rel="noopener noreferrer" aria-label="bilibili（新标签页打开）"></a>
             <button id="blue-light" class="mechanical blue-light" type="button" aria-label="探索" aria-disabled="true"></button>
             <h1 class="sr-only">牌河视觉档案</h1>
           </header>
           <button id="score-stick" class="stick-hit" type="button" aria-label="白色千点棒：点击拿起并掉落" aria-busy="false" data-motion="idle" disabled></button>
-          <div id="tiles" role="group" aria-label="十八张牌，六列三行。点击任意一张揭示全部内容。"></div>
+          <div id="tiles" role="group" aria-label="十八张牌，六列三行。点击蓝背牌逐张揭示内容。"></div>
         </div>
       </div>
     </main>

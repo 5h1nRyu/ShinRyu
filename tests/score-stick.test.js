@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Vector3, Quaternion } from '../vendor/three.module.js';
-import { STICK, REST_STICK, MAX_STICK_YAW, createStickDrop, stickClearance } from '../score-stick.js';
+import { STICK, REST_STICK, MAX_STICK_YAW, STICK_PLAYBACK_RATE, STICK_PICKUP_DURATION, createStickDrop, stickClearance } from '../score-stick.js';
 import { createStickGeometries } from '../mahjong-3d.js';
 
 function random(seed) {
@@ -26,12 +26,12 @@ test('tilted drops hit both ends, rebound, stay above the support and come to re
   for (let seed = 1; seed <= 32; seed++) {
     const drop = createStickDrop(random(seed * 87483));
     assert.deepEqual(drop.at(0), REST_STICK);
-    const raised = drop.at(360);
+    const raised = drop.at(STICK_PICKUP_DURATION);
     assert.ok(raised.z > 120);
     assert.ok(Math.abs(raised.quaternion[0]) > .04 && Math.abs(raised.quaternion[1]) > .04);
     assert.ok(drop.impacts.some((impact) => impact.end === -1));
     assert.ok(drop.impacts.some((impact) => impact.end === 1));
-    const firstImpact = 360 + drop.impacts[0].time * 1000;
+    const firstImpact = STICK_PICKUP_DURATION + drop.impacts[0].time * 1000;
     let lowest = Infinity, rebound = 0;
     for (let time = firstImpact; time < drop.duration; time += 4) {
       const height = drop.at(time).z;
@@ -39,10 +39,22 @@ test('tilted drops hit both ends, rebound, stay above the support and come to re
     }
     assert.ok(rebound > 1, 'No rebound after the second end strikes');
     for (let time = 0; time <= drop.duration; time += 4) assert.ok(stickClearance(drop.at(time)) >= -.01, 'Stick penetrated support');
-    assert.ok(drop.duration < 2500);
+    assert.ok(drop.duration < 2500 / 1.5);
     assert.equal(drop.settled.z, STICK.thickness / 2);
     assert.deepEqual(drop.at(drop.duration + 1000), drop.settled);
   }
+});
+
+test('pickup and the entire drop play at 1.5 times the original speed', () => {
+  assert.equal(STICK_PLAYBACK_RATE, 1.5);
+  assert.equal(STICK_PICKUP_DURATION, 240);
+  const drop = createStickDrop(() => .5);
+  const launch = drop.at(240);
+  assert.equal(launch.z, 142);
+  assert.ok(drop.at(239).z < launch.z);
+  assert.ok(drop.at(260).z < launch.z);
+  // This constant-random reference drop took 1226.6667 ms before acceleration.
+  assert.ok(Math.abs(drop.duration - 1226.6666666666667 / 1.5) < .00001);
 });
 
 test('repeated pickup connects to the previous resting pose; sampling order is immaterial', () => {

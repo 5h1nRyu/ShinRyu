@@ -7,6 +7,8 @@ export const STICK = Object.freeze({ length: mm(REAL_SIZE.stick.length), width: 
 export const MAX_STICK_YAW = 8 * Math.PI / 180;
 export const REST_STICK = Object.freeze({ x: STICK.x, y: STICK.y, z: STICK.thickness / 2, quaternion: Object.freeze([0, 0, 0, 1]) });
 const STEP = 1 / 240, PICKUP = 360, GRAVITY = 1600;
+export const STICK_PLAYBACK_RATE = 1.5;
+export const STICK_PICKUP_DURATION = PICKUP / STICK_PLAYBACK_RATE;
 const corners = [];
 for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) {
   corners.push(new Vector3(x * STICK.length / 2, y * STICK.width / 2, z * STICK.thickness / 2));
@@ -100,10 +102,11 @@ export function createStickDrop(random = Math.random, start = REST_STICK) {
   // Contact tolerance leaves less than a fraction of a design pixel of movement.
   const settled = { ...final, x: STICK.x, y: STICK.y, z: STICK.thickness / 2, quaternion: new Quaternion().setFromEuler(new Euler(0, 0, landingYaw, 'ZYX')).toArray() };
   frames.push(settled);
-  const duration = PICKUP + (frames.length - 1) * STEP * 1000;
+  const duration = (PICKUP + (frames.length - 1) * STEP * 1000) / STICK_PLAYBACK_RATE;
   return {
-    duration, impacts, settled,
+    duration, impacts: impacts.map((impact) => ({ ...impact, time: impact.time / STICK_PLAYBACK_RATE })), settled,
     at(milliseconds) {
+      milliseconds *= STICK_PLAYBACK_RATE;
       if (milliseconds <= 0) return start;
       if (milliseconds < PICKUP) return mix(start, launch, smooth(milliseconds / PICKUP));
       const frame = Math.max(0, (milliseconds - PICKUP) / (STEP * 1000));

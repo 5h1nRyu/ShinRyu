@@ -1,6 +1,7 @@
-import { smooth, center, rippleDelay, entryScale, flipPose, motionDistance } from './geometry.js';
-import { Mahjong3D } from './mahjong-3d.js?v=20261010-controls';
-import { REST_STICK, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261010-controls';
+import { smooth, center, entryScale, flipPose, motionDistance } from './geometry.js';
+import { Mahjong3D } from './mahjong-3d.js?v=20261010-interactions';
+import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261010-interactions';
+import { flipAt, settleFlips, revealTile, resetTiles } from './tile-interactions.js?v=20261010-interactions';
 import { CONTROL } from './physical-layout.js';
 
 const $ = (id) => document.getElementById(id);
@@ -12,7 +13,7 @@ const FONT = '"Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC", "PingFan
 const COLORS = { table: '#0B503D', back: '#2457B8', front: '#F4F0E6' };
 const UNIT_IDS = ['A', 'A', 'A', 'B', 'B', 'B', 'A', 'A', 'A', 'C', 'C', 'D', 'E', 'E', 'F', 'F', 'G', 'G'];
 const UNIT_NAMES = { A: '主图：观察与秩序', B: '简介：牌河视觉档案', C: '项目：网格实验', D: '关于：整理与创作', E: '文字：近处的秩序', F: '图片：图像研究', G: '联系：一起做点什么' };
-let phase = 'loading', epoch = 0, waveEnd = 0, waveTarget = 'front';
+let phase = 'loading', epoch = 0, resetCycle = null;
 let hovered = null, pressed = null;
 let raf = 0, pixelScale = 1, orderCounter = 0;
 let mahjong, consoleImage;
@@ -20,7 +21,7 @@ const CONTROL_HINTS = { dealer: 'github', streak: 'bilibili', reset: '重置', '
 let hoveredControl = null, focusedControl = null;
 let stickDrop = null, stickEpoch = 0, restingStick = REST_STICK;
 const tiles = Array.from({ length: 18 }, (_, index) => ({
-  index, ...center(index), unit: UNIT_IDS[index], fragment: null, tween: null, flip: null, order: index,
+  index, ...center(index), unit: UNIT_IDS[index], fragment: null, tween: null, front: false, flips: [], order: index,
 }));
 const background = { element: document.createElement('canvas') };
 background.context = background.element.getContext('2d');
@@ -130,8 +131,9 @@ function resize() {
 }
 
 function poseAt(tile, time) {
-  if (tile.flip) return flipPose(time - tile.flip.start, tile.flip.from, tile.flip.fromFront, tile.flip.fromHeight);
-  const theta = phase === 'front' ? Math.PI : 0;
+  const flip = flipAt(tile, time);
+  if (flip) return flipPose(time - flip.start, flip.from, flip.fromFront, flip.fromHeight);
+  const theta = tile.front ? Math.PI : 0;
   if (tile.tween) {
     const tween = tile.tween;
     const q = tween.from + (tween.to - tween.from) * smooth((time - tween.start) / tween.duration);
@@ -142,7 +144,7 @@ function poseAt(tile, time) {
 }
 
 function tweenTo(tile, target, duration) {
-  if (phase === 'flipping' || phase === 'entry' || phase === 'loading') return;
+  if (!interactive() || tile.flips.length) return;
   const time = performance.now();
   const from = poseAt(tile, time).q;
   tile.tween = { from, to: target, duration, start: time };
@@ -153,10 +155,11 @@ function tweenTo(tile, target, duration) {
 function sortedTiles(time) {
   return [...tiles].sort((a, b) => {
     const pa = poseAt(a, time), pb = poseAt(b, time);
-    const activeA = (a.flip && time >= a.flip.start && time < a.flip.start + 600) || Math.abs(pa.q - 1) > .00001;
-    const activeB = (b.flip && time >= b.flip.start && time < b.flip.start + 600) || Math.abs(pb.q - 1) > .00001;
+    const fa = flipAt(a, time), fb = flipAt(b, time);
+    const activeA = (fa && time >= fa.start) || Math.abs(pa.q - 1) > .00001;
+    const activeB = (fb && time >= fb.start) || Math.abs(pb.q - 1) > .00001;
     return Number(activeA) - Number(activeB) || pa.height - pb.height ||
-      (a.flip?.start ?? a.order) - (b.flip?.start ?? b.order) || a.index - b.index;
+      (fa?.start ?? a.order) - (fb?.start ?? b.order) || a.index - b.index;
   });
 }
 
@@ -166,8 +169,9 @@ function blurParameters(time) {
     const pose = poseAt(tile, time), previous = poseAt(tile, time - 1);
     const speed = motionDistance(pose, previous); // Maximum projected vertex speed in design px/ms.
     amount = Math.max(amount, Math.min(1, speed / .30));
-    const turning = tile.flip && time >= tile.flip.start + 120 && time <= tile.flip.start + 480;
-    const limit = turning ? 12 : phase === 'entry' || (tile.flip && time >= tile.flip.start + 480) ? 2 : 1;
+    const flip = flipAt(tile, time);
+    const turning = flip && time >= flip.start + 120 && time <= flip.start + 480;
+    const limit = turning ? 12 : phase === 'entry' || (flip && time >= flip.start + 480) ? 2 : 1;
     if (speed > .00001) shutter = Math.min(shutter, limit / speed);
   }
   const stickSpeed = stickMotionDistance(stickPoseAt(time), stickPoseAt(time - 1));
@@ -184,20 +188,35 @@ function render(time) {
   raf = 0;
   if (phase === 'loading') return;
   if (phase === 'entry' && time - epoch >= 1100) {
-    phase = 'back'; board.setAttribute('aria-busy', 'false');
+    phase = 'idle';
     $('score-stick').disabled = false;
-    $('status').textContent = '十八张牌已落定。点击任意一张蓝背牌，揭示档案。';
+    $('reset').disabled = false;
+    $('status').textContent = '十八张牌已落定。点击蓝背牌，逐张揭示内容。';
   }
   if (stickDrop && time >= stickEpoch + stickDrop.duration) {
     restingStick = stickDrop.settled; stickDrop = null;
     $('score-stick').setAttribute('aria-busy', 'false');
     $('stick-status').textContent = '点棒已落定，可再次点击拿起。';
   }
-  $('score-stick').dataset.motion = stickDrop ? time - stickEpoch < 360 ? 'lifting' : 'falling' : 'idle';
-  if (phase === 'flipping' && time >= waveEnd) finishFlip();
+  $('score-stick').dataset.motion = stickDrop ? time - stickEpoch < STICK_PICKUP_DURATION ? 'lifting' : 'falling' : 'idle';
+  if (resetCycle && phase === 'reset-reveal' && time >= resetCycle.reverseStart) {
+    phase = 'reset-conceal';
+    $('status').textContent = '第一轮波纹已到达右下角，正在从左上角波纹翻回蓝背。';
+  }
   for (const tile of tiles) {
+    if (settleFlips(tile, time)) {
+      updateTileLabel(tile);
+      if (interactive() && tile.front) {
+        $('status').textContent = `第${Math.floor(tile.index / 6) + 1}行第${tile.index % 6 + 1}列已揭示。点击其他蓝背牌继续揭示。`;
+      }
+    }
     if (tile.tween && time >= tile.tween.start + tile.tween.duration && tile.tween.to === 1) tile.tween = null;
   }
+  if (resetCycle && time >= resetCycle.end) {
+    resetCycle = null; phase = 'idle'; $('reset').disabled = false;
+    $('status').textContent = '牌河已重置。点击蓝背牌，可以再次逐张揭示。';
+  }
+  board.setAttribute('aria-busy', String(phase === 'entry' || Boolean(resetCycle) || tiles.some((tile) => tile.flips.length)));
   scene.style.opacity = String(smooth((time - epoch) / 200));
   const currentPoses = tiles.map((tile) => poseAt(tile, time));
   const blur = blurParameters(time);
@@ -216,47 +235,43 @@ function render(time) {
     const tile = sorted[order], bounds = mahjong.getTileBounds(tile.index);
     Object.assign(tile.button.style, { left: `${bounds.x}px`, top: `${bounds.y}px`, width: `${bounds.width}px`, height: `${bounds.height}px`, zIndex: order + 1 });
   }
-  const moving = stickDrop || phase === 'entry' || phase === 'flipping' || tiles.some((tile) => tile.tween && time < tile.tween.start + tile.tween.duration);
+  const moving = stickDrop || phase === 'entry' || resetCycle || tiles.some((tile) => tile.flips.length || (tile.tween && time < tile.tween.start + tile.tween.duration));
   if (moving) requestRender();
 }
 
 function requestRender() { if (!raf) raf = requestAnimationFrame(render); }
 
-function startFlip(origin, target) {
-  if (!interactive() || phase === target) return;
+function startSingleFlip(tile) {
+  if (!interactive()) return;
   const time = performance.now();
-  const starts = tiles.map((tile) => {
-    const pose = poseAt(tile, time);
-    return { from: pose.q, fromHeight: pose.height, fromFront: phase === 'front', start: time + rippleDelay(origin, tile.index) };
-  });
-  hovered = null; pressed = null;
-  for (const tile of tiles) { tile.flip = starts[tile.index]; tile.tween = null; }
-  phase = 'flipping'; waveTarget = target;
-  waveEnd = Math.max(...starts.map((flip) => flip.start)) + 600;
-  $('reset').disabled = true;
+  if (settleFlips(tile, time)) updateTileLabel(tile);
+  if (!revealTile(tile, time, poseAt(tile, time))) return;
+  updateTileLabel(tile);
   board.setAttribute('aria-busy', 'true');
-  $('status').textContent = target === 'front' ? '正在揭示牌河。' : '正在从左上角波纹重置牌河。';
+  $('status').textContent = `正在揭示第${Math.floor(tile.index / 6) + 1}行第${tile.index % 6 + 1}列的牌。`;
   requestRender();
 }
 
-function finishFlip() {
-  phase = waveTarget;
-  for (const tile of tiles) {
-    tile.flip = null; tile.tween = null;
-    const label = phase === 'front' ? UNIT_NAMES[tile.unit] : '揭示档案';
-    tile.button.setAttribute('aria-label', `${label}，第${Math.floor(tile.index / 6) + 1}行第${tile.index % 6 + 1}列`);
-  }
-  $('reset').disabled = phase !== 'front';
-  $('tiles').setAttribute('aria-label', phase === 'front'
-    ? '十八张牌，七个内容单元。悬停可抬起单牌，点击重置翻回蓝背。'
-    : '十八张蓝背牌，六列三行。点击任意一张揭示全部内容。');
-  board.setAttribute('aria-busy', 'false');
-  $('status').textContent = phase === 'front'
-    ? '档案已展开。点击上方黄色灯，从左上角翻回蓝背。'
-    : '牌河已重置。点击任意一张蓝背牌，可以再次揭示。';
+function startReset() {
+  if (!interactive()) return;
+  const time = performance.now();
+  for (const tile of tiles) settleFlips(tile, time);
+  resetCycle = resetTiles(tiles, time, tiles.map((tile) => poseAt(tile, time)));
+  hovered = null; pressed = null; phase = 'reset-reveal';
+  for (const tile of tiles) updateTileLabel(tile);
+  $('reset').disabled = true; board.setAttribute('aria-busy', 'true');
+  $('status').textContent = '正在从左上角波纹检查，补齐所有未翻开的牌。';
+  requestRender();
 }
 
-function interactive() { return phase === 'back' || phase === 'front'; }
+function updateTileLabel(tile) {
+  const label = tile.front ? UNIT_NAMES[tile.unit] : '揭示档案';
+  tile.button.setAttribute('aria-label', `${label}，第${Math.floor(tile.index / 6) + 1}行第${tile.index % 6 + 1}列`);
+  tile.button.setAttribute('aria-busy', String(Boolean(tile.flips.length)));
+  tile.button.dataset.face = tile.front ? 'front' : 'back';
+}
+
+function interactive() { return phase === 'idle'; }
 
 function createHitTargets() {
   for (const tile of tiles) {
@@ -273,26 +288,25 @@ function createHitTargets() {
       tweenTo(tile, 1, 200);
     });
     button.addEventListener('pointerdown', (event) => {
-      if (!interactive() || (event.button !== undefined && event.button !== 0)) return;
+      if (!interactive() || tile.front || tile.flips.length || (event.button !== undefined && event.button !== 0)) return;
       pressed = tile.index; tweenTo(tile, 1.015, 70);
     });
     button.addEventListener('pointercancel', () => { pressed = null; tweenTo(tile, hovered === tile.index ? 1.04 : 1, 200); });
     button.addEventListener('click', () => {
       if (!interactive()) return;
       pressed = null;
-      if (phase === 'back') startFlip(tile.index, 'front');
-      else tweenTo(tile, hovered === tile.index ? 1.04 : 1, 180);
+      startSingleFlip(tile);
     });
     button.addEventListener('keydown', (event) => {
       if (!interactive()) return;
-      if (event.key === 'Enter' || event.key === ' ') tweenTo(tile, 1.015, 70);
+      if (!tile.front && (event.key === 'Enter' || event.key === ' ')) tweenTo(tile, 1.015, 70);
       const direction = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -6, ArrowDown: 6 }[event.key];
       if (direction !== undefined) {
         event.preventDefault(); tiles[(tile.index + direction + 18) % 18].button.focus();
       }
     });
     button.addEventListener('blur', () => { if (hovered !== tile.index) tweenTo(tile, 1, 200); });
-    tile.button = button; $('tiles').append(button);
+    tile.button = button; updateTileLabel(tile); $('tiles').append(button);
   }
 }
 
@@ -321,9 +335,7 @@ for (const id of Object.keys(CONTROL_HINTS)) {
   });
 }
 
-$('reset').addEventListener('click', () => {
-  if (phase === 'front') startFlip(0, 'back');
-});
+$('reset').addEventListener('click', startReset);
 $('score-stick').addEventListener('click', () => {
   if (!mahjong || phase === 'loading' || phase === 'entry' || stickDrop) return;
   stickDrop = createStickDrop(Math.random, restingStick); stickEpoch = performance.now();
@@ -341,7 +353,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) requ
 async function initialize() {
   createHitTargets();
   await document.fonts.ready;
-  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261010-controls').then((image) => { consoleImage = image; })]);
+  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261010-interactions').then((image) => { consoleImage = image; })]);
   mahjong = new Mahjong3D($('mahjong'), tiles);
   updateControlHint();
   epoch = performance.now();
