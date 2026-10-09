@@ -54,7 +54,9 @@ test('repeated pickup connects to the previous resting pose; sampling order is i
   assert.notDeepEqual(first.at(360), second.at(360));
 });
 
-test('successive drops pin the same midpoint and vary heading within 15 degrees of the original state', () => {
+test('successive drops pin the same midpoint and vary heading within 8 degrees of the original state', () => {
+  const limit = 8 * Math.PI / 180;
+  assert.equal(MAX_STICK_YAW, limit);
   const rng = random(93218), headings = new Set();
   let rest = REST_STICK;
   for (let index = 0; index < 80; index++) {
@@ -63,16 +65,16 @@ test('successive drops pin the same midpoint and vary heading within 15 degrees 
       const pose = drop.at(time);
       assert.equal(pose.x, STICK.x); assert.equal(pose.y, STICK.y);
       const axis = new Vector3(1, 0, 0).applyQuaternion(new Quaternion().fromArray(pose.quaternion));
-      assert.ok(Math.abs(Math.atan2(axis.y, axis.x)) <= MAX_STICK_YAW + .00001);
+      assert.ok(Math.abs(Math.atan2(axis.y, axis.x)) <= limit + .00001);
     }
     const q = drop.settled.quaternion;
     assert.equal(q[0], 0); assert.equal(q[1], 0);
-    headings.add(Math.round(2 * Math.atan2(q[2], q[3]) * 180 / Math.PI));
+    headings.add(Math.round(2 * Math.atan2(q[2], q[3]) * 1800 / Math.PI));
     rest = drop.settled;
   }
   assert.ok(headings.size > 20, 'Landing headings repeated rather than being newly sampled');
   for (const sample of [0, 1]) {
     const drop = createStickDrop(() => sample);
-    assert.ok(Math.abs(2 * Math.atan2(drop.settled.quaternion[2], drop.settled.quaternion[3])) <= Math.PI / 12 + .00001);
+    assert.ok(Math.abs(2 * Math.atan2(drop.settled.quaternion[2], drop.settled.quaternion[3])) <= limit + .00001);
   }
 });

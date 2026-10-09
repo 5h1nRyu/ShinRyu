@@ -65,13 +65,13 @@
     <path d="M191-30H505V-1Q502 8 482 11L462 17L455 47Q454 55 447 55Q398 39 347 39Q294 40 243 55Q237 56 236 47L232 18L208 12Q197 10 194 2Z" fill="url(#chrome)" stroke="#b0b0ba" stroke-width="1.2"/>
     <ellipse cx="347" cy="-55" rx="94" ry="76" fill="#6e6a78"/>
     <ellipse cx="347" cy="-58" rx="87" ry="74" fill="#787580"/>
-    <!-- Start-dealer and continuation triangles, with the photographed lettering. -->
-    <path d="M117 63Q116 63 116 70L116 127Q116 134 123 134H183Z" fill="#26252b" stroke="#77747b" stroke-width="2"/>
-    <path d="M118 68L118 126Q118 132 124 132H178Z" fill="url(#yellowTriangle)" stroke="#fffef3" stroke-width="5" stroke-linejoin="round"/>
-    <path d="M132 52H189Q198 52 198 61V117Z" fill="url(#orangeTriangle)" stroke="#fffff4" stroke-width="5" stroke-linejoin="round"/>
-    <g fill="#3f3531" font-family="Noto Sans CJK JP,Noto Sans CJK SC,sans-serif" font-size="15" font-weight="600">
-      <text x="129" y="105" transform="rotate(45 129 105)">起家</text>
-      <text x="153" y="73" transform="rotate(45 153 73)">連荘</text>
+    <!-- Unlabelled triangles: halve the white diagonal edges' gap, keeping button sizes. -->
+    <g transform="translate(2.845940 -2.889724)">
+      <path d="M117 63Q116 63 116 70L116 127Q116 134 123 134H183Z" fill="#26252b" stroke="#77747b" stroke-width="2"/>
+      <path d="M118 68L118 126Q118 132 124 132H178Z" fill="url(#yellowTriangle)" stroke="#fffef3" stroke-width="5" stroke-linejoin="round"/>
+    </g>
+    <g transform="translate(-2.845940 2.889724)">
+      <path d="M132 52H189Q198 52 198 61V117Z" fill="url(#orangeTriangle)" stroke="#fffff4" stroke-width="5" stroke-linejoin="round"/>
     </g>
     <!-- East marker. -->
     <rect x="237" y="103" width="45" height="44" rx=".6" fill="#b4aeb9"/>
@@ -85,7 +85,6 @@
     <circle cx="532" cy="88" r="36" fill="#214651" stroke="#85868e" stroke-width="2"/>
     <circle cx="532" cy="88" r="32" fill="url(#blue)" stroke="#f4ffff" stroke-width="3"/>
     <ellipse cx="520" cy="76" rx="13" ry="10" fill="#f0ffff" opacity=".65" filter="url(#soft)"/>
-    <text x="466" y="82" transform="rotate(-45 466 82)" font-family="Arial,sans-serif" font-size="24" font-style="italic" font-weight="700" fill="#f0edf2">AMOS</text>
     <!-- Recessed riichi-stick channel. -->
     <rect x="146" y="168" width="400" height="56" rx="28" fill="#45434d" opacity=".45" filter="url(#soft)"/>
     <rect x="148" y="170" width="395" height="53" rx="26.5" fill="url(#slot)" stroke="#74727d" stroke-width="1.3"/>
