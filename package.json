@@ -6,7 +6,7 @@
   "description": "A static visual archive with 3D toon mahjong and a 2D control box.",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "check": "node --check app.js && node --check geometry.js && node --check mahjong-3d.js && node --check score-stick.js",
+    "check": "node --check app.js && node --check geometry.js && node --check mahjong-3d.js && node --check score-stick.js && node --check physical-layout.js",
     "start": "python3 -m http.server 8080"
   }
 }

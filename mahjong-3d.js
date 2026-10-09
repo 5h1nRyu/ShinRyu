@@ -1,5 +1,6 @@
 import * as THREE from './vendor/three.module.js';
 import { SPEC } from './geometry.js';
+import { mm } from './physical-layout.js';
 import { STICK, REST_STICK } from './score-stick.js';
 
 // Includes every lifted/rotated silhouette and the light's maximum projected shadow.
@@ -8,12 +9,18 @@ export const VIEW = Object.freeze({ left: 420, top: 0, width: 1116, height: 1040
 // X/Y are table coordinates; Z is physical height. The camera never tilts.
 export function tileTransform(pose) {
   const halfHeight = pose.q * (SPEC.thickness * Math.abs(Math.cos(pose.theta)) + SPEC.tileWidth * Math.sin(pose.theta)) / 2;
-  return { rotationY: pose.theta, scale: pose.q, z: halfHeight + 32 * pose.height };
+  return { rotationY: pose.theta, scale: pose.q, z: halfHeight + SPEC.liftHeight * pose.height };
 }
+
+export const TILE_LAYERS = Object.freeze({
+  back: Object.freeze({ depth: SPEC.thickness * 32 / 132, offset: SPEC.thickness / 2 - SPEC.thickness * 32 / 132 }),
+  core: Object.freeze({ depth: SPEC.thickness * 92 / 132, offset: -SPEC.thickness / 2 + SPEC.thickness * 8 / 132 }),
+  front: Object.freeze({ depth: SPEC.thickness * 8 / 132, offset: -SPEC.thickness / 2 }),
+});
 
 export function createTileGeometries() {
   const shape = new THREE.Shape();
-  const x = -82, y = -112, w = 164, h = 224, r = 8;
+  const w = SPEC.tileWidth, h = SPEC.tileHeight, x = -w / 2, y = -h / 2, r = mm(1);
   shape.moveTo(x + r, y); shape.lineTo(x + w - r, y);
   shape.quadraticCurveTo(x + w, y, x + w, y + r);
   shape.lineTo(x + w, y + h - r); shape.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
@@ -24,32 +31,33 @@ export function createTileGeometries() {
     UVGenerator: {
       generateTopUV(_geometry, vertices, a, b, c) {
         return [a, b, c].map((i) => new THREE.Vector2(
-          (flipU ? 82 - vertices[i * 3] : vertices[i * 3] + 82) / 164,
-          (vertices[i * 3 + 1] + 112) / 224,
+          (flipU ? w / 2 - vertices[i * 3] : vertices[i * 3] + w / 2) / w,
+          (vertices[i * 3 + 1] + h / 2) / h,
         ));
       },
       generateSideWallUV() { return [new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(1, 1), new THREE.Vector2(0, 1)]; },
     },
   });
   // The front cap is corrected in UV space so text is upright after a Y-axis flip.
-  return { back: geometry(32), core: geometry(92), front: geometry(8, true) };
+  return { back: geometry(TILE_LAYERS.back.depth), core: geometry(TILE_LAYERS.core.depth), front: geometry(TILE_LAYERS.front.depth, true) };
 }
 
 export function createStickGeometries() {
-  const bevel = .8, x = -STICK.length / 2 + bevel, y = -STICK.width / 2 + bevel;
-  const w = STICK.length - bevel * 2, h = STICK.width - bevel * 2, r = 1.6;
+  const bevel = mm(1 / 7), x = -STICK.length / 2 + bevel, y = -STICK.width / 2 + bevel;
+  const w = STICK.length - bevel * 2, h = STICK.width - bevel * 2, r = mm(2 / 7);
   const shape = new THREE.Shape();
   shape.moveTo(x + r, y); shape.lineTo(x + w - r, y);
   shape.quadraticCurveTo(x + w, y, x + w, y + r);
   shape.lineTo(x + w, y + h - r); shape.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
   shape.lineTo(x + r, y + h); shape.quadraticCurveTo(x, y + h, x, y + h - r);
   shape.lineTo(x, y + r); shape.quadraticCurveTo(x, y, x + r, y);
-  const pip = new THREE.Path(); pip.absarc(0, 0, 5.2, 0, Math.PI * 2, true); shape.holes.push(pip);
+  const pipRadius = mm(6.5 / 7);
+  const pip = new THREE.Path(); pip.absarc(0, 0, pipRadius, 0, Math.PI * 2, true); shape.holes.push(pip);
   const depth = STICK.thickness - 2 * bevel;
   const body = new THREE.ExtrudeGeometry(shape, { depth, steps: 1, curveSegments: 12, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 1 });
   body.translate(0, 0, -depth / 2);
   // The single red pip sits inside the molded recess, on both broad faces.
-  const dot = new THREE.CylinderGeometry(5.2, 5.2, depth, 32); dot.rotateX(Math.PI / 2);
+  const dot = new THREE.CylinderGeometry(pipRadius, pipRadius, depth, 32); dot.rotateX(Math.PI / 2);
   return { stickBody: body, stickDot: dot };
 }
 
@@ -128,15 +136,15 @@ export class Mahjong3D {
       const backCap = toon({ map: texture(tile.back) }), frontCap = toon({ map: texture(tile.fragment) });
       this.materials.add(backCap); this.materials.add(frontCap);
       for (const [geometry, offset, cap, side] of [
-        [this.geometries.back, 34, backCap, blue],
-        [this.geometries.core, -58, core, core],
-        [this.geometries.front, -66, frontCap, white],
+        [this.geometries.back, TILE_LAYERS.back.offset, backCap, blue],
+        [this.geometries.core, TILE_LAYERS.core.offset, core, core],
+        [this.geometries.front, TILE_LAYERS.front.offset, frontCap, white],
       ]) {
         const mesh = new THREE.Mesh(geometry, [cap, side]);
         mesh.position.z = offset; mesh.castShadow = true; mesh.receiveShadow = false;
         group.add(mesh);
       }
-      group.position.set(tile.x, -tile.y, 66);
+      group.position.set(tile.x, -tile.y, SPEC.thickness / 2);
       this.world.add(group); return group;
     });
 

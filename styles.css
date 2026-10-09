@@ -16,11 +16,16 @@ button:focus-visible, a:focus-visible { outline: 2px solid #f4f0e6; outline-offs
 #mahjong { position: absolute; left: 420px; top: 0; width: 1116px; height: 1040px; }
 #table, #mahjong { pointer-events: none; }
 .stick-hit {
-  position: absolute; left: 778px; top: 180px; width: 364px; height: 44px;
-  border: 0; padding: 0; background: transparent; border-radius: 3px; z-index: 31;
+  position: absolute; border: 0; padding: 0; background: transparent; border-radius: 3px; z-index: 29;
   touch-action: manipulation;
 }
 .stick-hit[aria-busy="true"] { cursor: default; }
+.console {
+  position: absolute; inset: 0; z-index: 30; pointer-events: none;
+  transform-origin: 960px 250px;
+  transform: translateY(var(--console-shift)) scale(var(--console-scale));
+}
+.console .mechanical { pointer-events: auto; }
 .mechanical { position: absolute; border: 0; padding: 0; background: none; color: #c5c8b7; z-index: 30; }
 .mechanical:disabled { cursor: default; }
 .mechanical .button-top { display: block; position: absolute; transition: filter 160ms ease-in-out, transform 60ms ease-in-out, box-shadow 60ms ease-in-out; }

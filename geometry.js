@@ -1,8 +1,12 @@
 // All positions are in the document's 1920 × 1080 design coordinates.
+import { REAL_SIZE, mm } from './physical-layout.js';
+
+const tileWidth = mm(REAL_SIZE.tile.width), tileHeight = mm(REAL_SIZE.tile.height);
+const columnPitch = tileWidth + 4, rowPitch = tileHeight + 4;
 export const SPEC = Object.freeze({
-  width: 1920, height: 1080, tileWidth: 164, tileHeight: 224, thickness: 132,
-  columns: 6, rows: 3, columnPitch: 168, rowPitch: 228,
-  hoverScale: 1.04, flipDuration: 600, maxDistance: 955.791,
+  width: 1920, height: 1080, tileWidth, tileHeight, thickness: mm(REAL_SIZE.tile.thickness),
+  columns: 6, rows: 3, columnPitch, rowPitch, liftHeight: mm(4),
+  hoverScale: 1.04, flipDuration: 600, maxDistance: Math.hypot(5 * columnPitch, 2 * rowPitch),
 });
 
 export function smooth(u) {
@@ -11,7 +15,7 @@ export function smooth(u) {
 }
 
 export function center(index) {
-  return { x: 540 + (index % 6) * 168, y: 432 + Math.floor(index / 6) * 228 };
+  return { x: 960 - 2.5 * columnPitch + (index % 6) * columnPitch, y: 1000 - tileHeight / 2 - 2 * rowPitch + Math.floor(index / 6) * rowPitch };
 }
 
 export function rippleDelay(origin, index) {
@@ -40,13 +44,13 @@ export function flipPose(time, initialScale = 1, fromFront = false, initialHeigh
 
 export function projection(theta, q = 1) {
   const cos = Math.cos(theta), sin = Math.max(0, Math.sin(theta));
-  const faceWidth = q * 164 * Math.abs(cos);
-  const sideWidth = q * 132 * sin;
+  const faceWidth = q * SPEC.tileWidth * Math.abs(cos);
+  const sideWidth = q * SPEC.thickness * sin;
   return {
-    width: faceWidth + sideWidth, height: q * 224,
+    width: faceWidth + sideWidth, height: q * SPEC.tileHeight,
     faceWidth, sideWidth,
-    faceOffset: q * 66 * sin * (cos >= 0 ? 1 : -1),
-    sideOffset: -q * 82 * cos,
+    faceOffset: q * SPEC.thickness / 2 * sin * (cos >= 0 ? 1 : -1),
+    sideOffset: -q * SPEC.tileWidth / 2 * cos,
     front: theta > Math.PI / 2,
   };
 }
@@ -54,7 +58,7 @@ export function projection(theta, q = 1) {
 // Vertices of the projected rectangular solid, used only to measure real motion.
 export function vertices(theta, q) {
   const points = [];
-  for (const x of [-82, 82]) for (const z of [-66, 66]) for (const y of [-112, 112]) {
+  for (const x of [-SPEC.tileWidth / 2, SPEC.tileWidth / 2]) for (const z of [-SPEC.thickness / 2, SPEC.thickness / 2]) for (const y of [-SPEC.tileHeight / 2, SPEC.tileHeight / 2]) {
     points.push({ x: q * (x * Math.cos(theta) + z * Math.sin(theta)), y: q * y });
   }
   return points;

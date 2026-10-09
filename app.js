@@ -1,9 +1,12 @@
 import { smooth, center, rippleDelay, entryScale, flipPose, motionDistance } from './geometry.js';
 import { Mahjong3D } from './mahjong-3d.js';
 import { REST_STICK, createStickDrop, stickMotionDistance } from './score-stick.js';
+import { CONTROL } from './physical-layout.js';
 
 const $ = (id) => document.getElementById(id);
 const scene = $('scene'), board = $('board'), canvas = $('table');
+scene.style.setProperty('--console-scale', String(CONTROL.scale));
+scene.style.setProperty('--console-shift', `${CONTROL.bottom - 250}px`);
 const ctx = canvas.getContext('2d', { alpha: false });
 const FONT = '"Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif';
 const COLORS = { table: '#0B503D', back: '#2457B8', front: '#F4F0E6' };
@@ -101,6 +104,8 @@ function drawConsole() {
   const context = background.context;
   context.clearRect(0, 0, 1920, 1080);
   context.fillStyle = COLORS.table; context.fillRect(0, 0, 1920, 1080);
+  context.save();
+  context.translate(960, CONTROL.bottom); context.scale(CONTROL.scale, CONTROL.scale); context.translate(-960, -250);
   context.fillStyle = '#073d2e';
   context.beginPath(); context.moveTo(444, 0); context.lineTo(490, 44); context.lineTo(490, 0); context.fill();
   context.beginPath(); context.moveTo(1430, 0); context.lineTo(1430, 44); context.lineTo(1476, 0); context.fill();
@@ -123,9 +128,11 @@ function drawConsole() {
   context.fillStyle = '#bdc1b5'; context.fill();
   context.beginPath(); context.ellipse(960, -57, 132, 78, 0, 0, Math.PI * 2);
   context.fillStyle = '#939d91'; context.fill();
-  roundRect(context, 624, 177, 672, 57, 27, '#979f94');
-  roundRect(context, 634, 179, 652, 48, 23, '#bcc2b5');
-  roundRect(context, 658, 181, 604, 43, 14, '#647266');
+  // Widen the slot for the correctly scaled 7 mm white stick, keeping its center.
+  roundRect(context, 624, 164, 672, 76, 27, '#979f94');
+  roundRect(context, 634, 168, 652, 68, 23, '#bcc2b5');
+  roundRect(context, 658, 171, 604, 62, 14, '#647266');
+  context.restore();
 }
 
 function resize() {

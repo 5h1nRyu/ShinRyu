@@ -1,8 +1,9 @@
 import { Euler, Quaternion, Vector3 } from './vendor/three.module.js';
 import { smooth } from './geometry.js';
+import { REAL_SIZE, mm, controlPoint } from './physical-layout.js';
 
-// Traditional white 1,000-point tenbou: 65 x 7 x 3 mm, scaled uniformly by 5.6.
-export const STICK = Object.freeze({ length: 364, width: 39.2, thickness: 16.8, x: 960, y: -202 });
+// The same millimeter conversion as the tiles and 2D control box.
+export const STICK = Object.freeze({ length: mm(REAL_SIZE.stick.length), width: mm(REAL_SIZE.stick.width), thickness: mm(REAL_SIZE.stick.thickness), x: 960, y: -controlPoint(960, 202).y });
 export const REST_STICK = Object.freeze({ x: STICK.x, y: STICK.y, z: STICK.thickness / 2, quaternion: Object.freeze([0, 0, 0, 1]) });
 const STEP = 1 / 240, PICKUP = 360, GRAVITY = 1600;
 const corners = [];

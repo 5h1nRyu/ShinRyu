@@ -6,11 +6,11 @@ const near = (actual, expected, tolerance = .00001) => assert.ok(Math.abs(actual
 
 test('18 tile centers preserve the 4px seams and the specified bounding box', () => {
   const first = center(0), last = center(17);
-  assert.deepEqual(first, { x: 540, y: 432 });
-  assert.deepEqual(last, { x: 1380, y: 888 });
-  assert.equal(first.x - SPEC.tileWidth / 2, 458);
-  assert.equal(first.y - SPEC.tileHeight / 2, 320);
-  assert.equal(last.x + SPEC.tileWidth / 2, 1462);
+  assert.deepEqual(first, { x: 582.5, y: 502 });
+  assert.deepEqual(last, { x: 1337.5, y: 902 });
+  assert.equal(first.x - SPEC.tileWidth / 2, 509);
+  assert.equal(first.y - SPEC.tileHeight / 2, 404);
+  assert.equal(last.x + SPEC.tileWidth / 2, 1411);
   assert.equal(last.y + SPEC.tileHeight / 2, 1000);
   assert.equal(center(1).x - first.x - SPEC.tileWidth, 4);
   assert.equal(center(6).y - first.y - SPEC.tileHeight, 4);
@@ -22,12 +22,12 @@ test('the 600ms flip shows only the long side at 300ms and upright content at th
   const sidePose = flipPose(300);
   near(sidePose.theta, Math.PI / 2); near(sidePose.q, 1.04);
   const side = projection(sidePose.theta, sidePose.q);
-  near(side.faceWidth, 0); near(side.sideWidth, 137.28); near(side.height, 232.96);
+  near(side.faceWidth, 0); near(side.sideWidth, 120.12); near(side.height, 203.84);
   const final = projection(flipPose(600).theta, flipPose(600).q);
-  near(final.width, 164); near(final.sideWidth, 0); assert.equal(final.front, true);
-  near(projection(0, 1.04).width, 170.56);
-  const peakAngle = Math.atan(132 / 164);
-  near(projection(peakAngle, 1.04).width, 218.9444354, .001);
+  near(final.width, 147); near(final.sideWidth, 0); assert.equal(final.front, true);
+  near(projection(0, 1.04).width, 152.88);
+  const peakAngle = Math.atan(115.5 / 147);
+  near(projection(peakAngle, 1.04).width, 194.4250725, .001);
 });
 
 test('the distance wave starts at the clicked center and finishes in at most 1200ms', () => {
@@ -46,7 +46,7 @@ test('reset flips from the upright front to the blue back with the same 600ms ti
   near(initial.theta, Math.PI); near(initial.q, 1.025);
   const side = flipPose(300, 1.025, true);
   near(side.theta, Math.PI / 2); near(side.q, 1.04);
-  near(projection(side.theta, side.q).sideWidth, 137.28);
+  near(projection(side.theta, side.q).sideWidth, 120.12);
   const final = flipPose(600, 1.025, true);
   near(final.theta, 0); near(final.q, 1);
   assert.equal(projection(final.theta, final.q).front, false);
