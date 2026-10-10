@@ -1,9 +1,10 @@
-import { smooth, center, entryScale, flipPose, motionDistance } from './geometry.js';
-import { Mahjong3D } from './mahjong-3d.js?v=20261010-reference-seams';
-import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261010-reference-seams';
-import { flipAt, settleFlips, revealTile, resetTiles } from './tile-interactions.js?v=20261010-reference-seams';
-import { RIICHI_FACES, nextRiichiFace } from './riichi-faces.js?v=20261010-reference-seams';
-import { drawTableSeams, tableLayout } from './table-surface.js?v=20261010-reference-seams';
+import { smooth, center, entryScale, flipPose, motionDistance } from './geometry.js?v=20261010-side-rivers';
+import { Mahjong3D } from './mahjong-3d.js?v=20261010-side-rivers';
+import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261010-side-rivers';
+import { flipAt, settleFlips, revealTile, resetTiles } from './tile-interactions.js?v=20261010-side-rivers';
+import { RIICHI_FACES, nextRiichiFace, sideRiverFaces } from './riichi-faces.js?v=20261010-side-rivers';
+import { sideRiverCenters } from './river-layout.js?v=20261010-side-rivers';
+import { drawTableSeams, tableLayout } from './table-surface.js?v=20261010-side-rivers';
 import { CONTROL } from './physical-layout.js';
 
 const $ = (id) => document.getElementById(id);
@@ -20,6 +21,7 @@ let hovered = null, pressed = null;
 let raf = 0, pixelScale = 1, orderCounter = 0;
 let mahjong, consoleImage;
 const riichiImages = new Map();
+const sideTiles = [];
 const CONTROL_HINTS = { dealer: 'github', streak: 'bilibili', reset: '重置', 'blue-light': '探索' };
 let hoveredControl = null, focusedControl = null;
 let stickDrop = null, stickEpoch = 0, restingStick = REST_STICK;
@@ -107,23 +109,37 @@ async function buildTextures() {
   }
   for (const tile of tiles) tile.back = back.element;
   changeRiichiFace();
+  const faces = sideRiverFaces(), fragments = new Map();
+  const positions = [...sideRiverCenters('kamicha'), ...sideRiverCenters('shimocha')];
+  positions.forEach((position, index) => {
+    const face = faces[index];
+    if (!fragments.has(face.code)) {
+      const texture = makeTexture(164, 224);
+      paintRiichiFace(texture.element, face); fragments.set(face.code, texture.element);
+    }
+    sideTiles.push({ ...position, face, fragment: fragments.get(face.code), back: back.element });
+  });
 }
 
 function changeRiichiFace() {
   const tile = tiles[17];
   tile.riichiFace = nextRiichiFace(tile.riichiFace?.code);
-  const context = tile.fragment.getContext('2d');
+  paintRiichiFace(tile.fragment, tile.riichiFace);
+  mahjong?.updateTileFront(17);
+  tile.button.dataset.riichiFace = tile.riichiFace.code;
+  updateTileLabel(tile);
+}
+
+function paintRiichiFace(canvas, face) {
+  const context = canvas.getContext('2d');
   context.clearRect(0, 0, 164, 224);
   roundRect(context, 0, 0, 164, 224, 8, COLORS.front);
   // Give each edge a 10% ivory gutter. The 164x224 texture is UV-mapped onto
   // the 147x196 cap, preserving the artwork's 3:4 ratio on the physical tile.
-  const image = riichiImages.get(tile.riichiFace.code);
+  const image = riichiImages.get(face.code);
   const inset = .1;
   context.drawImage(image, 164 * inset, 224 * inset, 164 * (1 - inset * 2), 224 * (1 - inset * 2));
   roundRect(context, 1, 1, 162, 222, 7, null, '#fbf7ed');
-  mahjong?.updateTileFront(17);
-  tile.button.dataset.riichiFace = tile.riichiFace.code;
-  updateTileLabel(tile);
 }
 
 function drawConsole() {
@@ -380,8 +396,8 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) requ
 async function initialize() {
   createHitTargets();
   await document.fonts.ready;
-  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261010-reference-seams').then((image) => { consoleImage = image; })]);
-  mahjong = new Mahjong3D($('mahjong'), tiles);
+  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261010-side-rivers').then((image) => { consoleImage = image; })]);
+  mahjong = new Mahjong3D($('mahjong'), tiles, sideTiles);
   updateControlHint();
   epoch = performance.now();
   phase = 'entry';

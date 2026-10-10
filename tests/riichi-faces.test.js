@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { RIICHI_FACES, nextRiichiFace } from '../riichi-faces.js';
+import { RIICHI_FACES, nextRiichiFace, sideRiverFaces } from '../riichi-faces.js';
 
 test('all 37 local face designs cover 0–9m/p/s and the seven honors', () => {
   const expected = ['m', 'p', 's'].flatMap((suit) => Array.from({ length: 10 }, (_, n) => `${n}${suit}`));
@@ -15,6 +15,31 @@ test('all 37 local face designs cover 0–9m/p/s and the seven honors', () => {
     assert.doesNotMatch(svg, /(?:href|src)="https?:/);
   }
   assert.deepEqual(RIICHI_FACES.slice(-7).map((face) => face.label), ['東', '南', '西', '北', '白', '發', '中']);
+});
+
+test('both side rivers share a non-red pool with at most two of each face', () => {
+  let seed = 1528;
+  const random = () => { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 4294967296; };
+  const draws = new Set();
+  for (let i = 0; i < 500; i++) {
+    const faces = sideRiverFaces(36, random), counts = new Map();
+    assert.equal(faces.length, 36);
+    for (const face of faces) {
+      assert.ok(RIICHI_FACES.includes(face));
+      assert.ok(!face.code.startsWith('0'));
+      counts.set(face.code, (counts.get(face.code) ?? 0) + 1);
+    }
+    assert.ok([...counts.values()].every(count => count <= 2));
+    draws.add(faces.map(face => face.code).join(','));
+  }
+  assert.equal(draws.size, 500);
+  for (const endpoint of [0, 1]) {
+    const full = sideRiverFaces(68, () => endpoint);
+    assert.equal(new Set(full.map(face => face.code)).size, 34);
+    for (const face of full) assert.equal(full.filter(other => other === face).length, 2);
+  }
+  assert.deepEqual(sideRiverFaces(0), []);
+  for (const count of [-1, 69, 1.5]) assert.throws(() => sideRiverFaces(count), RangeError);
 });
 
 test('the M.LEAGUE sampling pool has 136 tiles, including exactly one red five per suit', () => {

@@ -7,15 +7,16 @@
     <meta name="description" content="牌河视觉档案：以十八张麻将牌收藏图像、文字与项目。点击一张牌，展开一段观察。">
     <title>牌河视觉档案 · ShinRyu</title>
     <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="./styles.css?v=20261010-reference-seams">
-    <script src="./app.js?v=20261010-reference-seams" type="module"></script>
+    <link rel="stylesheet" href="./styles.css?v=20261010-side-rivers">
+    <script src="./app.js?v=20261010-side-rivers" type="module"></script>
   </head>
   <body>
     <main id="viewport" aria-label="牌河视觉档案">
       <div id="scene">
         <div id="board" aria-label="麻将桌上的视觉档案" aria-busy="true">
           <canvas id="table" width="1920" height="1080" aria-hidden="true"></canvas>
-          <canvas id="mahjong" width="1116" height="1040" aria-hidden="true"></canvas>
+          <canvas id="mahjong" width="2240" height="1040" aria-hidden="true"></canvas>
+          <div class="sr-only" role="img" aria-label="左侧上家及右侧下家的牌河，牌面常亮，仅供展示。"></div>
           <header class="console" aria-label="麻将桌控制盒">
             <button id="reset" class="mechanical reset" type="button" aria-label="黄色灯重置：从左上角波纹补齐翻开，再波纹翻回蓝背" disabled>
               <span class="button-top" aria-hidden="true"></span>

@@ -1,19 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SPEC, center, smooth, entryScale, flipPose, projection, rippleDelay, motionDistance } from '../geometry.js';
+import { SPEC, RIVER_TOP, RIVER_GAP, center, smooth, entryScale, flipPose, projection, rippleDelay, motionDistance } from '../geometry.js';
+import { CONTROL } from '../physical-layout.js';
 
 const near = (actual, expected, tolerance = .00001) => assert.ok(Math.abs(actual - expected) < tolerance, `${actual} != ${expected}`);
 
 test('18 tile centers preserve the 4px seams and the specified bounding box', () => {
   const first = center(0), last = center(17);
-  assert.deepEqual(first, { x: 582.5, y: 502 });
-  assert.deepEqual(last, { x: 1337.5, y: 902 });
+  assert.deepEqual(first, { x: 582.5, y: RIVER_TOP + 98 });
+  assert.deepEqual(last, { x: 1337.5, y: RIVER_TOP + 498 });
   assert.equal(first.x - SPEC.tileWidth / 2, 509);
-  assert.equal(first.y - SPEC.tileHeight / 2, 404);
+  near(first.y - SPEC.tileHeight / 2, RIVER_TOP);
   assert.equal(last.x + SPEC.tileWidth / 2, 1411);
-  assert.equal(last.y + SPEC.tileHeight / 2, 1000);
+  near(last.y + SPEC.tileHeight / 2, RIVER_TOP + 596);
   assert.equal(center(1).x - first.x - SPEC.tileWidth, 4);
-  assert.equal(center(6).y - first.y - SPEC.tileHeight, 4);
+  near(center(6).y - first.y - SPEC.tileHeight, 4);
+});
+
+test('the visible main river gap is one third of its previous size', () => {
+  near(RIVER_GAP, (404 - CONTROL.visibleHeight) / 3);
+  near(center(0).y - SPEC.tileHeight / 2 - CONTROL.visibleHeight, RIVER_GAP);
+  assert.ok(RIVER_GAP > 0);
 });
 
 test('the 600ms flip shows only the long side at 300ms and upright content at the end', () => {

@@ -1,8 +1,11 @@
 // All positions are in the document's 1920 × 1080 design coordinates.
-import { REAL_SIZE, mm } from './physical-layout.js';
+import { CONTROL, REAL_SIZE, mm } from './physical-layout.js';
 
 const tileWidth = mm(REAL_SIZE.tile.width), tileHeight = mm(REAL_SIZE.tile.height);
 const columnPitch = tileWidth + 4, rowPitch = tileHeight + 4;
+const oldRiverTop = 1000 - 3 * tileHeight - 2 * 4;
+export const RIVER_GAP = (oldRiverTop - CONTROL.visibleHeight) / 3;
+export const RIVER_TOP = CONTROL.visibleHeight + RIVER_GAP;
 export const SPEC = Object.freeze({
   width: 1920, height: 1080, tileWidth, tileHeight, thickness: mm(REAL_SIZE.tile.thickness),
   columns: 6, rows: 3, columnPitch, rowPitch, liftHeight: mm(4),
@@ -15,7 +18,7 @@ export function smooth(u) {
 }
 
 export function center(index) {
-  return { x: 960 - 2.5 * columnPitch + (index % 6) * columnPitch, y: 1000 - tileHeight / 2 - 2 * rowPitch + Math.floor(index / 6) * rowPitch };
+  return { x: 960 - 2.5 * columnPitch + (index % 6) * columnPitch, y: RIVER_TOP + tileHeight / 2 + Math.floor(index / 6) * rowPitch };
 }
 
 export function rippleDelay(origin, index) {

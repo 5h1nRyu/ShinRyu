@@ -1,10 +1,10 @@
 import * as THREE from './vendor/three.module.js';
-import { SPEC } from './geometry.js';
+import { SPEC } from './geometry.js?v=20261010-side-rivers';
 import { mm } from './physical-layout.js';
-import { STICK, REST_STICK } from './score-stick.js?v=20261010-reference-seams';
+import { STICK, REST_STICK } from './score-stick.js?v=20261010-side-rivers';
 
 // Includes every lifted/rotated silhouette and the light's maximum projected shadow.
-export const VIEW = Object.freeze({ left: 420, top: 0, width: 1116, height: 1040 });
+export const VIEW = Object.freeze({ left: -160, top: 0, width: 2240, height: 1040 });
 
 // X/Y are table coordinates; Z is physical height. The camera never tilts.
 export function tileTransform(pose) {
@@ -88,7 +88,8 @@ const COMPOSE_FRAGMENT = `
 `;
 
 export class Mahjong3D {
-  constructor(canvas, tiles) {
+  constructor(canvas, tiles, sideTiles = []) {
+    Object.assign(canvas.style, { left: `${VIEW.left}px`, top: `${VIEW.top}px`, width: `${VIEW.width}px`, height: `${VIEW.height}px` });
     this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, premultipliedAlpha: false, antialias: false, powerPreference: 'high-performance' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.NoToneMapping;
@@ -109,7 +110,7 @@ export class Mahjong3D {
     this.light.position.set(720, -460, 1320);
     this.light.castShadow = true;
     this.light.shadow.mapSize.set(4096, 4096);
-    Object.assign(this.light.shadow.camera, { left: -640, right: 640, top: 640, bottom: -640, near: 1, far: 2500 });
+    Object.assign(this.light.shadow.camera, { left: -1200, right: 1200, top: 800, bottom: -800, near: 1, far: 2500 });
     this.light.shadow.bias = -0.00005;
     this.world.add(this.light, this.light.target);
 
@@ -131,8 +132,8 @@ export class Mahjong3D {
       }
       return this.textures.get(source);
     };
-    this.groups = tiles.map((tile) => {
-      const group = new THREE.Group(); group.name = `tile-${tile.index}`;
+    const makeTile = (tile, name) => {
+      const group = new THREE.Group(); group.name = name;
       const backCap = toon({ map: texture(tile.back) }), frontCap = toon({ map: texture(tile.fragment) });
       this.materials.add(backCap); this.materials.add(frontCap);
       for (const [geometry, offset, cap, side] of [
@@ -146,6 +147,16 @@ export class Mahjong3D {
       }
       group.position.set(tile.x, -tile.y, SPEC.thickness / 2);
       this.world.add(group); return group;
+    };
+    this.groups = tiles.map(tile => makeTile(tile, `tile-${tile.index}`));
+    this.sideGroups = sideTiles.map(tile => {
+      const group = makeTile(tile, `river-${tile.side}-${tile.index}`);
+      // World Z rotation is applied after the face-up Y flip; this preserves
+      // upright, unmirrored artwork from each neighboring player's viewpoint.
+      group.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -tile.rotation)
+        .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
+      group.userData.face = tile.face.code;
+      return group;
     });
 
     this.stick = new THREE.Group(); this.stick.name = 'white-tenbou-1000';
@@ -174,8 +185,8 @@ export class Mahjong3D {
     this.applyStickPose(REST_STICK);
 
     // Only the actual light's shadow is drawn onto the unchanged 2D table canvas.
-    this.receiver = new THREE.Mesh(new THREE.PlaneGeometry(1920, 1080), new THREE.ShadowMaterial({ color: '#05251B', opacity: 1, toneMapped: false }));
-    this.receiver.position.set(960, -540, 0); this.receiver.receiveShadow = true;
+    this.receiver = new THREE.Mesh(new THREE.PlaneGeometry(VIEW.width, VIEW.height), new THREE.ShadowMaterial({ color: '#05251B', opacity: 1, toneMapped: false }));
+    this.receiver.position.set(VIEW.left + VIEW.width / 2, -VIEW.top - VIEW.height / 2, 0); this.receiver.receiveShadow = true;
     this.world.add(this.receiver);
 
     this.samples = Math.min(2, this.renderer.getContext().getParameter(this.renderer.getContext().MAX_SAMPLES));

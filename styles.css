@@ -14,7 +14,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid #f4f0e6; outline-offs
 #scene { position: absolute; width: 1920px; height: 1080px; transform-origin: 0 0; opacity: 0; }
 #board, #tiles { position: absolute; inset: 0; width: 1920px; height: 1080px; }
 #table { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
-#mahjong { position: absolute; left: 420px; top: 0; width: 1116px; height: 1040px; }
+#mahjong { position: absolute; left: -160px; top: 0; width: 2240px; height: 1040px; }
 #table, #mahjong { pointer-events: none; }
 .stick-hit {
   position: absolute; border: 0; padding: 0; background: transparent; border-radius: 3px; z-index: 29;
