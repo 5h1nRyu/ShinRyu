@@ -1,10 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from '../vendor/three.module.js';
-import { createTileGeometries, tileTransform, VIEW, TILE_LAYERS } from '../mahjong-3d.js';
+import { createTileGeometries, tileTransform, tileQuaternion, VIEW, TILE_LAYERS } from '../mahjong-3d.js';
 import { SPEC, center, flipPose, projection } from '../geometry.js';
 
 const near = (actual, expected, tolerance = .0001) => assert.ok(Math.abs(actual - expected) < tolerance, `${actual} != ${expected}`);
+
+test('neighboring tiles flip around their own long axis while retaining their player orientation', () => {
+  for (const rotation of [Math.PI / 2, -Math.PI / 2]) {
+    const backNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(tileQuaternion(0, rotation));
+    const frontNormal = new THREE.Vector3(0, 0, -1).applyQuaternion(tileQuaternion(Math.PI, rotation));
+    near(backNormal.z, 1); near(frontNormal.z, 1);
+    const top = new THREE.Vector3(0, 1, 0).applyQuaternion(tileQuaternion(Math.PI, rotation));
+    near(top.x, Math.sin(rotation)); near(top.y, 0);
+    const longAxis = new THREE.Vector3(0, 1, 0).applyQuaternion(tileQuaternion(Math.PI / 2, rotation));
+    near(longAxis.x, top.x); near(longAxis.y, top.y); near(longAxis.z, 0);
+  }
+});
 
 test('the real solid has 28/80.5/7 layers, a 147x196 footprint and 115.5 total thickness', () => {
   const geometries = createTileGeometries();

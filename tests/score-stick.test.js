@@ -1,12 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Vector3, Quaternion } from '../vendor/three.module.js';
-import { STICK, REST_STICK, MAX_STICK_YAW, STICK_PLAYBACK_RATE, STICK_PICKUP_DURATION, createStickDrop, stickClearance } from '../score-stick.js';
+import { STICK, REST_STICK, INITIAL_STICK_ANGLE, MAX_STICK_YAW, STICK_PLAYBACK_RATE, STICK_PICKUP_DURATION, createStickDrop, stickClearance } from '../score-stick.js';
 import { createStickGeometries } from '../mahjong-3d.js';
 
 function random(seed) {
   return () => { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 4294967296; };
 }
+
+test('the initial stick sits flat at the slot midpoint with a minus-two-degree screen angle', () => {
+  const axis = new Vector3(1, 0, 0).applyQuaternion(new Quaternion().fromArray(REST_STICK.quaternion));
+  assert.equal(INITIAL_STICK_ANGLE, -2 * Math.PI / 180);
+  assert.ok(Math.abs(Math.atan2(-axis.y, axis.x) - INITIAL_STICK_ANGLE) < .000001);
+  assert.equal(REST_STICK.x, STICK.x); assert.equal(REST_STICK.y, STICK.y);
+  assert.ok(Math.abs(stickClearance(REST_STICK)) < .000001);
+  const drop = createStickDrop(random(3));
+  assert.deepEqual(drop.at(0), REST_STICK);
+});
 
 test('white tenbou preserves the reference 65:7:3 proportion and has one recessed circular pip', () => {
   const geometries = createStickGeometries();

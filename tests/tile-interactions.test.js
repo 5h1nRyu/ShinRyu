@@ -1,79 +1,95 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { flipPose, rippleDelay } from '../geometry.js';
-import { RESET_PAUSE, flipAt, settleFlips, revealTile, resetTiles } from '../tile-interactions.js';
+import { center, flipPose } from '../geometry.js';
+import { sideRiverCenters } from '../river-layout.js';
+import { topLeftTile, rippleDelays, flipAt, settleFlips, revealTiles, resetTiles } from '../tile-interactions.js';
 
-const makeTiles = () => Array.from({ length: 18 }, (_, index) => ({ index, front: false, flips: [], tween: null }));
-const rest = { q: 1, height: 0 };
-function pose(tile, time) {
+const makeTiles = () => [...Array.from({ length: 18 }, (_, index) => center(index)), ...sideRiverCenters('kamicha'), ...sideRiverCenters('shimocha')]
+  .map((position, index) => ({ ...position, index, front: false, flips: [], tween: null }));
+const rest = { theta: 0, q: 1, height: 0 };
+const poses = (tiles, time) => tiles.map(tile => {
   const flip = flipAt(tile, time);
   return flip ? flipPose(time - flip.start, flip.from, flip.fromFront, flip.fromHeight)
     : { theta: tile.front ? Math.PI : 0, q: 1, height: 0 };
-}
-
-test('a click reveals just its tile; other backs can be revealed concurrently and fronts ignore clicks', () => {
-  const tiles = makeTiles();
-  assert.equal(revealTile(tiles[8], 0, rest), true);
-  assert.equal(revealTile(tiles[8], 100, rest), false);
-  assert.equal(revealTile(tiles[17], 100, rest), true);
-  assert.ok(pose(tiles[8], 300).theta > 0);
-  assert.equal(pose(tiles[7], 300).theta, 0);
-  for (const tile of tiles) settleFlips(tile, 700);
-  assert.deepEqual(tiles.filter((tile) => tile.front).map((tile) => tile.index), [8, 17]);
-  const before = structuredClone(tiles[8]);
-  assert.equal(revealTile(tiles[8], 900, rest), false);
-  assert.deepEqual(tiles[8], before);
 });
 
-test('the second wave waits 500 ms after the first check reaches the bottom right', () => {
-  assert.equal(RESET_PAUSE, 500);
-  const tiles = makeTiles();
-  const cycle = resetTiles(tiles, 1000, tiles.map(() => rest));
-  assert.deepEqual(cycle, { checkEnd: 1600, reverseStart: 2100, end: 3300 });
-  assert.equal(tiles[17].flips[0].start, 1600);
-  assert.equal(tiles[0].flips[1].start, 2100);
-  assert.deepEqual(pose(tiles[0], 1600), { theta: Math.PI, q: 1, height: 0 });
-  assert.deepEqual(pose(tiles[0], 2099), { theta: Math.PI, q: 1, height: 0 });
-  for (const tile of tiles) {
-    const [reveal, conceal] = tile.flips;
-    assert.equal(reveal.fromFront, false); assert.equal(conceal.fromFront, true);
-    assert.equal(conceal.start - reveal.start, 1100);
-    assert.deepEqual(pose(tile, conceal.start), { theta: Math.PI, q: 1, height: 0 });
-    assert.ok(Math.abs(pose(tile, conceal.start - .001).theta - Math.PI) < .00001);
+test('every tile across all three rivers can originate a spatial reveal wave', () => {
+  for (let origin = 0; origin < 54; origin++) {
+    const tiles = makeTiles(), cycle = revealTiles(tiles, origin, 100, tiles.map(() => rest));
+    assert.equal(cycle.origin, origin); assert.equal(cycle.end, 1300);
+    assert.equal(tiles[origin].flips[0].start, 100);
+    assert.equal(Math.max(...tiles.map(tile => tile.flips[0].start)), 700);
+    const ordered = tiles.map(tile => ({ distance: Math.hypot(tile.x - tiles[origin].x, tile.y - tiles[origin].y), start: tile.flips[0].start }))
+      .sort((a, b) => a.distance - b.distance);
+    for (let i = 1; i < ordered.length; i++) assert.ok(ordered[i].start >= ordered[i - 1].start);
+    for (const tile of tiles) settleFlips(tile, cycle.end);
+    assert.ok(tiles.every(tile => tile.front && !tile.flips.length));
+    const before = structuredClone(tiles);
+    assert.equal(revealTiles(tiles, origin, 1500, poses(tiles, 1500)), null);
+    assert.deepEqual(tiles, before);
   }
-  assert.ok(pose(tiles[0], 2400).theta > 0 && pose(tiles[0], 2400).theta < Math.PI);
-  assert.equal(pose(tiles[17], 2400).theta, Math.PI);
-  for (const tile of tiles) settleFlips(tile, cycle.end);
-  assert.ok(tiles.every((tile) => !tile.front && tile.flips.length === 0));
 });
 
-test('reset skips already open tiles in its first pass and handles all-back, mixed and all-front boards', () => {
-  for (const open of [[], [0, 3, 8, 17], Array.from({ length: 18 }, (_, i) => i)]) {
-    const tiles = makeTiles();
-    for (const index of open) tiles[index].front = true;
-    const cycle = resetTiles(tiles, 200, tiles.map(() => rest));
+test('repeated clicks do not restart a reveal, and a mixed wave skips already front-up tiles', () => {
+  const tiles = makeTiles(); tiles[0].front = true; tiles[20].front = true;
+  revealTiles(tiles, 45, 0, poses(tiles, 0));
+  assert.equal(tiles[0].flips.length, 0); assert.equal(tiles[20].flips.length, 0);
+  const before = structuredClone(tiles);
+  assert.equal(revealTiles(tiles, 45, 100, poses(tiles, 100)), null);
+  assert.equal(revealTiles(tiles, 1, 100, poses(tiles, 100)), null);
+  assert.deepEqual(tiles, before);
+  for (const tile of tiles) settleFlips(tile, 1200);
+  assert.ok(tiles.every(tile => tile.front));
+});
+
+test('reset begins at the spatial top-left of all 54 tiles and directly closes every front', () => {
+  const tiles = makeTiles(); tiles.forEach(tile => tile.front = true);
+  const first = topLeftTile(tiles);
+  assert.equal(first.index, 30); assert.ok(first.x < tiles[0].x && first.y < tiles[0].y);
+  assert.equal(topLeftTile([...tiles].reverse()).index, first.index);
+  const cycle = resetTiles(tiles, 1000, poses(tiles, 1000));
+  assert.deepEqual(cycle, { origin: first.index, end: 2200 });
+  assert.equal(first.flips[0].start, 1000);
+  const delays = rippleDelays(tiles, first);
+  for (const [index, tile] of tiles.entries()) {
+    assert.equal(tile.flips.length, 1); assert.equal(tile.flips[0].fromFront, true);
+    assert.equal(tile.flips[0].start, 1000 + delays[index]);
+  }
+  for (const tile of tiles) settleFlips(tile, cycle.end + 500);
+  assert.ok(tiles.every(tile => !tile.front && !tile.flips.length));
+});
+
+test('reset leaves unopened tiles on their backs and never reveals them first', () => {
+  for (const open of [[], [0, 9, 18, 30, 44, 53]]) {
+    const tiles = makeTiles(); open.forEach(index => tiles[index].front = true);
+    const cycle = resetTiles(tiles, 200, poses(tiles, 200));
     for (const tile of tiles) {
-      assert.equal(tile.flips.length, open.includes(tile.index) ? 1 : 2);
-      assert.equal(tile.flips.at(-1).start, cycle.reverseStart + rippleDelay(0, tile.index));
-      if (open.includes(tile.index)) assert.equal(pose(tile, 500).theta, Math.PI);
+      assert.equal(tile.flips.length, open.includes(tile.index) ? 1 : 0);
+      assert.ok(tile.flips.every(flip => flip.fromFront));
+      settleFlips(tile, cycle.end);
+      assert.equal(tile.front, false);
     }
-    // A delayed browser frame still completes both passes correctly.
-    for (const tile of tiles) settleFlips(tile, cycle.end + 500);
-    assert.ok(tiles.every((tile) => !tile.front && tile.flips.length === 0));
+    if (!open.length) assert.equal(cycle.end, 200);
   }
 });
 
-test('reset during a clicked reveal preserves its pose and finishes it before the return wave', () => {
-  const tiles = makeTiles();
-  const lifted = { q: 1.04, height: 1 };
-  revealTile(tiles[0], 0, lifted);
-  const current = structuredClone(tiles[0].flips[0]), before = pose(tiles[0], 180);
-  const cycle = resetTiles(tiles, 180, tiles.map((tile) => pose(tile, 180)));
-  assert.deepEqual(tiles[0].flips[0], current);
-  assert.deepEqual(pose(tiles[0], 180), before);
-  assert.equal(tiles[0].flips[1].start, 1280);
-  assert.equal(pose(tiles[0], 700).theta, Math.PI);
-  for (const tile of tiles) settleFlips(tile, cycle.end);
-  assert.ok(tiles.every((tile) => !tile.front));
-  assert.equal(revealTile(tiles[0], cycle.end + 1, rest), true);
+test('reset interrupts a reveal continuously, cancels queued unopened reveals and finishes closed', () => {
+  for (const origin of [0, 23, 48]) {
+    const tiles = makeTiles(); revealTiles(tiles, origin, 0, tiles.map(() => ({ ...rest, q: 1.04, height: 1 })));
+    const at = 180, before = poses(tiles, at);
+    const active = tiles.filter(tile => tile.flips[0].start <= at), queued = tiles.filter(tile => tile.flips[0].start > at);
+    const activeFlips = new Map(active.map(tile => [tile.index, structuredClone(tile.flips[0])]));
+    const cycle = resetTiles(tiles, at, before);
+    for (const tile of active) {
+      assert.deepEqual(tile.flips[0], activeFlips.get(tile.index));
+      assert.deepEqual(poses(tiles, at)[tile.index], before[tile.index]);
+      assert.ok(tile.flips[1].start >= tile.flips[0].start + 600);
+      assert.equal(tile.flips[1].fromFront, true);
+    }
+    for (const tile of queued) { assert.equal(tile.flips.length, 0); assert.equal(tile.front, false); }
+    assert.ok(cycle.end <= at + 1200);
+    for (const tile of tiles) settleFlips(tile, cycle.end);
+    assert.ok(tiles.every(tile => !tile.front && !tile.flips.length));
+    assert.ok(revealTiles(tiles, origin, cycle.end + 1, poses(tiles, cycle.end + 1)));
+  }
 });

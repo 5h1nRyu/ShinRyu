@@ -1,10 +1,10 @@
-import { smooth, center, entryScale, flipPose, motionDistance } from './geometry.js?v=20261010-loading-entry';
-import { Mahjong3D } from './mahjong-3d.js?v=20261010-loading-entry';
-import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261010-loading-entry';
-import { flipAt, settleFlips, revealTile, resetTiles } from './tile-interactions.js?v=20261010-loading-entry';
-import { RIICHI_FACES, nextRiichiFace, sideRiverFaces } from './riichi-faces.js?v=20261010-loading-entry';
-import { sideRiverCenters } from './river-layout.js?v=20261010-loading-entry';
-import { drawTableSeams, tableLayout } from './table-surface.js?v=20261010-loading-entry';
+import { smooth, center, entryScale, flipPose, motionDistance } from './geometry.js?v=20261011-all-rivers';
+import { Mahjong3D, VIEW } from './mahjong-3d.js?v=20261011-all-rivers';
+import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261011-all-rivers';
+import { flipAt, settleFlips, revealTiles, resetTiles } from './tile-interactions.js?v=20261011-all-rivers';
+import { RIICHI_FACES, nextRiichiFace, sideRiverFaces } from './riichi-faces.js?v=20261011-all-rivers';
+import { sideRiverCenters } from './river-layout.js?v=20261011-all-rivers';
+import { drawTableSeams, tableLayout } from './table-surface.js?v=20261011-all-rivers';
 import { CONTROL } from './physical-layout.js';
 
 const $ = (id) => document.getElementById(id);
@@ -22,13 +22,16 @@ let hovered = null, pressed = null;
 let raf = 0, pixelScale = 1, orderCounter = 0;
 let mahjong, consoleImage;
 const riichiImages = new Map();
-const sideTiles = [];
 const CONTROL_HINTS = { dealer: 'github', streak: 'bilibili', reset: '重置', 'blue-light': '探索' };
 let hoveredControl = null, focusedControl = null;
 let stickDrop = null, stickEpoch = 0, restingStick = REST_STICK;
-const tiles = Array.from({ length: 18 }, (_, index) => ({
-  index, ...center(index), unit: UNIT_IDS[index], fragment: null, tween: null, front: false, flips: [], order: index,
+const mainTiles = Array.from({ length: 18 }, (_, index) => ({
+  index, riverIndex: index, side: 'main', rotation: 0, ...center(index), unit: UNIT_IDS[index], fragment: null, tween: null, front: false, flips: [], order: index,
 }));
+const sideTiles = [...sideRiverCenters('kamicha'), ...sideRiverCenters('shimocha')].map((position, index) => ({
+  ...position, index: 18 + index, riverIndex: position.index, fragment: null, tween: null, front: false, flips: [], order: 18 + index,
+}));
+const tiles = [...mainTiles, ...sideTiles];
 let tabletop;
 
 function roundRect(context, x, y, width, height, radius, fill, stroke) {
@@ -90,7 +93,7 @@ async function buildTextures() {
   const origins = {
     A: [0, 0], B: [0, 3], C: [1, 3], D: [1, 5], E: [2, 0], F: [2, 2], G: [2, 4],
   };
-  for (const tile of tiles) {
+  for (const tile of mainTiles) {
     const [row, col] = origins[tile.unit];
     const cropX = (tile.index % 6 - col) * 168, cropY = (Math.floor(tile.index / 6) - row) * 228;
     const texture = makeTexture(164, 224);
@@ -111,14 +114,14 @@ async function buildTextures() {
   for (const tile of tiles) tile.back = back.element;
   changeRiichiFace();
   const faces = sideRiverFaces(), fragments = new Map();
-  const positions = [...sideRiverCenters('kamicha'), ...sideRiverCenters('shimocha')];
-  positions.forEach((position, index) => {
+  sideTiles.forEach((tile, index) => {
     const face = faces[index];
     if (!fragments.has(face.code)) {
       const texture = makeTexture(164, 224);
       paintRiichiFace(texture.element, face); fragments.set(face.code, texture.element);
     }
-    sideTiles.push({ ...position, face, fragment: fragments.get(face.code), back: back.element });
+    Object.assign(tile, { face, riichiFace: face, fragment: fragments.get(face.code) });
+    tile.button.dataset.riichiFace = face.code; updateTileLabel(tile);
   });
 }
 
@@ -179,7 +182,7 @@ function poseAt(tile, time) {
     const q = tween.from + (tween.to - tween.from) * smooth((time - tween.start) / tween.duration);
     return { theta, q, height: Math.max(0, (q - 1) / .04) };
   }
-  const q = phase === 'entry' ? entryScale(tile.index, time - epoch) : 1;
+  const q = phase === 'entry' ? entryScale(tile.riverIndex, time - epoch) : 1;
   return { theta, q, height: phase === 'entry' ? (q - 1) / .06 : 0 };
 }
 
@@ -239,7 +242,7 @@ function render(time) {
     scene.inert = false;
     $('score-stick').disabled = false;
     $('reset').disabled = false;
-    $('status').textContent = '十八张牌已落定。点击蓝背牌，逐张揭示内容。';
+    $('status').textContent = '三处牌河已落定。点击任意蓝背牌，以它为中心波纹翻开全部牌。';
   }
   if (stickDrop && time >= stickEpoch + stickDrop.duration) {
     restingStick = stickDrop.settled; stickDrop = null;
@@ -247,28 +250,18 @@ function render(time) {
     $('stick-status').textContent = '点棒已落定，可再次点击拿起。';
   }
   $('score-stick').dataset.motion = stickDrop ? time - stickEpoch < STICK_PICKUP_DURATION ? 'lifting' : 'falling' : 'idle';
-  if (resetCycle && phase === 'reset-reveal' && time >= resetCycle.checkEnd) {
-    phase = 'reset-wait';
-    $('status').textContent = '第一轮波纹已到达右下角，等待 0.5 秒后翻回蓝背。';
-  }
-  if (resetCycle && phase === 'reset-wait' && time >= resetCycle.reverseStart) {
-    phase = 'reset-conceal';
-    $('status').textContent = '等待结束，正在从左上角波纹翻回蓝背。';
-  }
   for (const tile of tiles) {
     if (settleFlips(tile, time)) {
       updateTileLabel(tile);
-      if (interactive() && tile.front) {
-        $('status').textContent = `第${Math.floor(tile.index / 6) + 1}行第${tile.index % 6 + 1}列已揭示。点击其他蓝背牌继续揭示。`;
-      }
     }
     if (tile.tween && time >= tile.tween.start + tile.tween.duration && tile.tween.to === 1) tile.tween = null;
   }
   if (resetCycle && time >= resetCycle.end) {
     resetCycle = null; phase = 'idle'; $('reset').disabled = false;
     changeRiichiFace();
-    $('status').textContent = '牌河已重置。点击蓝背牌，可以再次逐张揭示。';
+    $('status').textContent = '三处牌河已恢复蓝背。点击任意蓝背牌，再次以它为中心波纹翻开全部牌。';
   }
+  if (interactive() && tiles.every(tile => tile.front && !tile.flips.length)) $('status').textContent = '三处牌河全部翻开。点击黄色灯，从所有牌中左上方的一张开始波纹合牌。';
   board.setAttribute('aria-busy', String(phase === 'entry' || Boolean(resetCycle) || tiles.some((tile) => tile.flips.length)));
   const sceneryOpacity = smooth((time - epoch) / SCENERY_FADE_DURATION);
   canvas.style.opacity = String(sceneryOpacity);
@@ -279,23 +272,25 @@ function render(time) {
     ? Array.from({ length: 7 }, (_, index) => tiles.map((tile) => poseAt(tile, time - blur.window * index / 6)))
     : [];
   const stickSamples = sampledPoses.map((_, index) => stickPoseAt(time - blur.window * index / 6));
-  const sidePosesAt = (at) => sideTiles.map(tile => {
-    const q = phase === 'entry' ? entryScale(tile.index, at - epoch) : 1;
-    return { theta: 0, q, height: phase === 'entry' ? (q - 1) / .06 : 0 };
-  });
-  mahjong.render(currentPoses, sampledPoses, blur.amount, stickPoseAt(time), stickSamples, {
-    opacity: sceneryOpacity, sidePoses: sidePosesAt(time),
-    sideSamples: sampledPoses.map((_, index) => sidePosesAt(time - blur.window * index / 6)),
-  });
+  mahjong.render(currentPoses, sampledPoses, blur.amount, stickPoseAt(time), stickSamples, { opacity: sceneryOpacity });
   const stickBounds = mahjong.getStickBounds(), hitHeight = Math.max(44, stickBounds.height);
   Object.assign($('score-stick').style, {
     left: `${stickBounds.x}px`, top: `${stickBounds.y - (hitHeight - stickBounds.height) / 2}px`,
     width: `${stickBounds.width}px`, height: `${hitHeight}px`,
   });
   const sorted = sortedTiles(time);
+  const visibleLeft = Math.max(VIEW.left, -tabletop.sceneLeft / tabletop.scale);
+  const visibleTop = Math.max(VIEW.top, -tabletop.sceneTop / tabletop.scale);
+  const visibleRight = Math.min(VIEW.left + VIEW.width, (innerWidth - tabletop.sceneLeft) / tabletop.scale);
+  const visibleBottom = Math.min(VIEW.top + VIEW.height, (innerHeight - tabletop.sceneTop) / tabletop.scale);
   for (let order = 0; order < sorted.length; order++) {
     const tile = sorted[order], bounds = mahjong.getTileBounds(tile.index);
-    Object.assign(tile.button.style, { left: `${bounds.x}px`, top: `${bounds.y}px`, width: `${bounds.width}px`, height: `${bounds.height}px`, zIndex: order + 1 });
+    const left = Math.max(bounds.x, visibleLeft), top = Math.max(bounds.y, visibleTop);
+    const width = Math.max(0, Math.min(bounds.x + bounds.width, visibleRight) - left);
+    const height = Math.max(0, Math.min(bounds.y + bounds.height, visibleBottom) - top);
+    tile.button.hidden = width === 0 || height === 0;
+    tile.button.tabIndex = tile.button.hidden ? -1 : 0;
+    Object.assign(tile.button.style, { left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${height}px`, zIndex: order + 1 });
   }
   const moving = stickDrop || phase === 'entry' || resetCycle || tiles.some((tile) => tile.flips.length || (tile.tween && time < tile.tween.start + tile.tween.duration));
   if (moving) requestRender();
@@ -303,14 +298,14 @@ function render(time) {
 
 function requestRender() { if (!raf) raf = requestAnimationFrame(render); }
 
-function startSingleFlip(tile) {
+function startReveal(tile) {
   if (!interactive()) return;
   const time = performance.now();
-  if (settleFlips(tile, time)) updateTileLabel(tile);
-  if (!revealTile(tile, time, poseAt(tile, time))) return;
-  updateTileLabel(tile);
+  for (const candidate of tiles) settleFlips(candidate, time);
+  if (!revealTiles(tiles, tile.index, time, tiles.map(candidate => poseAt(candidate, time)))) return;
+  for (const candidate of tiles) updateTileLabel(candidate);
   board.setAttribute('aria-busy', 'true');
-  $('status').textContent = `正在揭示第${Math.floor(tile.index / 6) + 1}行第${tile.index % 6 + 1}列的牌。`;
+  $('status').textContent = `正在以${tilePositionLabel(tile)}为中心波纹翻开三处牌河。`;
   requestRender();
 }
 
@@ -319,18 +314,23 @@ function startReset() {
   const time = performance.now();
   for (const tile of tiles) settleFlips(tile, time);
   resetCycle = resetTiles(tiles, time, tiles.map((tile) => poseAt(tile, time)));
-  hovered = null; pressed = null; phase = 'reset-reveal';
+  hovered = null; pressed = null; phase = 'reset-conceal';
   for (const tile of tiles) updateTileLabel(tile);
   $('reset').disabled = true; board.setAttribute('aria-busy', 'true');
-  $('status').textContent = '正在从左上角波纹检查，补齐所有未翻开的牌。';
+  $('status').textContent = '正在从三处牌河中左上方的一张开始波纹合牌。';
   requestRender();
 }
 
 function updateTileLabel(tile) {
   const label = tile.front ? tile.riichiFace?.label ?? UNIT_NAMES[tile.unit] : '揭示档案';
-  tile.button.setAttribute('aria-label', `${label}，第${Math.floor(tile.index / 6) + 1}行第${tile.index % 6 + 1}列`);
+  tile.button.setAttribute('aria-label', `${label}，${tilePositionLabel(tile)}`);
   tile.button.setAttribute('aria-busy', String(Boolean(tile.flips.length)));
   tile.button.dataset.face = tile.front ? 'front' : 'back';
+}
+
+function tilePositionLabel(tile) {
+  const river = { main: '下方牌河', kamicha: '上家牌河', shimocha: '下家牌河' }[tile.side];
+  return `${river}第${Math.floor(tile.riverIndex / 6) + 1}行第${tile.riverIndex % 6 + 1}列`;
 }
 
 function interactive() { return phase === 'idle'; }
@@ -339,7 +339,7 @@ function createHitTargets() {
   for (const tile of tiles) {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'tile-hit';
     button.dataset.index = tile.index;
-    button.setAttribute('aria-label', `揭示档案，第${Math.floor(tile.index / 6) + 1}行第${tile.index % 6 + 1}列`);
+    button.dataset.side = tile.side;
     button.addEventListener('pointerenter', (event) => {
       if (!interactive() || event.pointerType === 'touch') return;
       hovered = tile.index; tweenTo(tile, 1.04, 180);
@@ -357,14 +357,19 @@ function createHitTargets() {
     button.addEventListener('click', () => {
       if (!interactive()) return;
       pressed = null;
-      startSingleFlip(tile);
+      startReveal(tile);
     });
     button.addEventListener('keydown', (event) => {
       if (!interactive()) return;
       if (!tile.front && (event.key === 'Enter' || event.key === ' ')) tweenTo(tile, 1.015, 70);
-      const direction = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -6, ArrowDown: 6 }[event.key];
+      const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
       if (direction !== undefined) {
-        event.preventDefault(); tiles[(tile.index + direction + 18) % 18].button.focus();
+        event.preventDefault();
+        const candidates = tiles.filter(other => !other.button.hidden && other !== tile)
+          .map(other => ({ other, forward: (other.x - tile.x) * direction[0] + (other.y - tile.y) * direction[1], lateral: Math.abs((other.x - tile.x) * direction[1] - (other.y - tile.y) * direction[0]) }))
+          .filter(candidate => candidate.forward > .01)
+          .sort((a, b) => a.forward + 3 * a.lateral - b.forward - 3 * b.lateral);
+        candidates[0]?.other.button.focus({ preventScroll: true });
       }
     });
     button.addEventListener('blur', () => { if (hovered !== tile.index) tweenTo(tile, 1, 200); });
@@ -420,15 +425,14 @@ async function initialize() {
     style.addEventListener('error', () => reject(new Error('Stylesheet failed to load')), { once: true });
   });
   await document.fonts.ready;
-  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261010-loading-entry').then((image) => { consoleImage = image; })]);
-  mahjong = new Mahjong3D($('mahjong'), tiles, sideTiles);
+  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261011-all-rivers').then((image) => { consoleImage = image; })]);
+  mahjong = new Mahjong3D($('mahjong'), mainTiles, sideTiles);
   updateControlHint();
   resize();
   // Render all passes behind the loader to upload textures and compile shaders
   // before the shared entry clock starts. No partial scene can become visible.
   const entryPoses = tiles.map(() => ({ theta: 0, q: 1.06, height: 1 }));
-  const sidePoses = sideTiles.map(() => ({ theta: 0, q: 1.06, height: 1 }));
-  mahjong.render(entryPoses, [entryPoses], 1, REST_STICK, [REST_STICK], { opacity: 0, sidePoses, sideSamples: [sidePoses] });
+  mahjong.render(entryPoses, [entryPoses], 1, REST_STICK, [REST_STICK], { opacity: 0 });
   mahjong.renderer.getContext().finish();
   loadingEpoch = performance.now(); phase = 'loading-fade'; requestRender();
 }

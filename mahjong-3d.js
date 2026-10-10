@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.module.js';
-import { SPEC } from './geometry.js?v=20261010-loading-entry';
+import { SPEC } from './geometry.js?v=20261011-all-rivers';
 import { mm } from './physical-layout.js';
-import { STICK, REST_STICK } from './score-stick.js?v=20261010-loading-entry';
+import { STICK, REST_STICK } from './score-stick.js?v=20261011-all-rivers';
 
 // Includes every lifted/rotated silhouette and the light's maximum projected shadow.
 export const VIEW = Object.freeze({ left: -160, top: 0, width: 2240, height: 1040 });
@@ -10,6 +10,11 @@ export const VIEW = Object.freeze({ left: -160, top: 0, width: 2240, height: 104
 export function tileTransform(pose) {
   const halfHeight = pose.q * (SPEC.thickness * Math.abs(Math.cos(pose.theta)) + SPEC.tileWidth * Math.sin(pose.theta)) / 2;
   return { rotationY: pose.theta, scale: pose.q, z: halfHeight + SPEC.liftHeight * pose.height };
+}
+
+export function tileQuaternion(theta, rotation = 0) {
+  return new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), -rotation)
+    .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), theta));
 }
 
 export const TILE_LAYERS = Object.freeze({
@@ -137,7 +142,7 @@ export class Mahjong3D {
       return this.textures.get(source);
     };
     const makeTile = (tile, name) => {
-      const group = new THREE.Group(); group.name = name;
+      const group = new THREE.Group(); group.name = name; group.userData.rotation = tile.rotation ?? 0;
       const backCap = toon({ map: texture(tile.back) }), frontCap = toon({ map: texture(tile.fragment) });
       this.materials.add(backCap); this.materials.add(frontCap);
       for (const [geometry, offset, cap, side] of [
@@ -160,6 +165,7 @@ export class Mahjong3D {
       group.userData.face = tile.face.code;
       return group;
     });
+    this.groups.push(...this.sideGroups);
 
     this.stick = new THREE.Group(); this.stick.name = 'white-tenbou-1000';
     const red = toon({ color: '#BB4337' }); this.materials.add(red);
@@ -279,19 +285,12 @@ export class Mahjong3D {
   applyPoses(poses, stickPose = REST_STICK) {
     poses.forEach((pose, index) => {
       const transform = tileTransform(pose), group = this.groups[index];
-      group.rotation.y = transform.rotationY;
+      group.quaternion.copy(tileQuaternion(transform.rotationY, group.userData.rotation));
       group.scale.setScalar(transform.scale);
       group.position.z = transform.z;
     });
     this.applyStickPose(stickPose);
     this.world.updateMatrixWorld(true);
-  }
-
-  applySidePoses(poses = []) {
-    this.sideGroups.forEach((group, index) => {
-      const transform = tileTransform(poses[index] ?? { theta: 0, q: 1, height: 0 });
-      group.scale.setScalar(transform.scale); group.position.z = transform.z;
-    });
   }
 
   clearTarget(target) {
@@ -313,7 +312,6 @@ export class Mahjong3D {
 
   render(currentPoses, sampledPoses, amount, stickPose = REST_STICK, stickSamples = [], entrance = {}) {
     const opacity = entrance.opacity ?? 1, fading = opacity < 1;
-    this.applySidePoses(entrance.sidePoses);
     this.stick.visible = !fading;
     this.applyPoses(currentPoses, stickPose);
     this.receiver.visible = true;
@@ -331,24 +329,22 @@ export class Mahjong3D {
       this.clearTarget(this.averageTarget);
       this.addSample(this.currentTarget.texture, 1 - amount);
       for (const [index, poses] of sampledPoses.entries()) {
-        this.applySidePoses(entrance.sideSamples?.[index]);
         this.applyPoses(poses, stickSamples[index] ?? stickPose);
         this.renderTileTarget(this.sampleTarget);
         this.addSample(this.sampleTarget.texture, amount / sampledPoses.length);
       }
       output = this.averageTarget.texture;
-      this.applySidePoses(entrance.sidePoses);
       this.applyPoses(currentPoses, stickPose);
     }
     if (fading) {
       this.entryStickTarget.setSize(this.currentTarget.width, this.currentTarget.height);
-      for (const group of [...this.groups, ...this.sideGroups]) group.visible = false;
+      for (const group of this.groups) group.visible = false;
       this.stick.visible = true; this.receiver.visible = true;
       this.renderer.shadowMap.autoUpdate = true;
       this.renderTileTarget(this.entryStickTarget);
       this.renderer.shadowMap.autoUpdate = false;
       this.receiver.visible = false;
-      for (const group of [...this.groups, ...this.sideGroups]) group.visible = true;
+      for (const group of this.groups) group.visible = true;
     } else if (this.entryStickTarget.width !== 1 || this.entryStickTarget.height !== 1) {
       this.entryStickTarget.setSize(1, 1);
     }
