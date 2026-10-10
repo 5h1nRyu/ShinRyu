@@ -1,9 +1,9 @@
 import { smooth, center, entryScale, flipPose, motionDistance } from './geometry.js';
-import { Mahjong3D } from './mahjong-3d.js?v=20261010-table-inset';
-import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261010-table-inset';
-import { flipAt, settleFlips, revealTile, resetTiles } from './tile-interactions.js?v=20261010-table-inset';
-import { RIICHI_FACES, nextRiichiFace } from './riichi-faces.js?v=20261010-table-inset';
-import { drawTableSeams, tableLayout } from './table-surface.js?v=20261010-table-inset';
+import { Mahjong3D } from './mahjong-3d.js?v=20261010-reference-seams';
+import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261010-reference-seams';
+import { flipAt, settleFlips, revealTile, resetTiles } from './tile-interactions.js?v=20261010-reference-seams';
+import { RIICHI_FACES, nextRiichiFace } from './riichi-faces.js?v=20261010-reference-seams';
+import { drawTableSeams, tableLayout } from './table-surface.js?v=20261010-reference-seams';
 import { CONTROL } from './physical-layout.js';
 
 const $ = (id) => document.getElementById(id);
@@ -380,7 +380,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) requ
 async function initialize() {
   createHitTargets();
   await document.fonts.ready;
-  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261010-table-inset').then((image) => { consoleImage = image; })]);
+  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261010-reference-seams').then((image) => { consoleImage = image; })]);
   mahjong = new Mahjong3D($('mahjong'), tiles);
   updateControlHint();
   epoch = performance.now();
