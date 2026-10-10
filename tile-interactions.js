@@ -1,4 +1,4 @@
-import { SPEC, rippleDelay } from './geometry.js?v=20261010-side-rivers';
+import { SPEC, rippleDelay } from './geometry.js?v=20261010-loading-entry';
 export const RESET_PAUSE = 500;
 
 export function flipAt(tile, time) {

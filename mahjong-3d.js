@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.module.js';
-import { SPEC } from './geometry.js?v=20261010-side-rivers';
+import { SPEC } from './geometry.js?v=20261010-loading-entry';
 import { mm } from './physical-layout.js';
-import { STICK, REST_STICK } from './score-stick.js?v=20261010-side-rivers';
+import { STICK, REST_STICK } from './score-stick.js?v=20261010-loading-entry';
 
 // Includes every lifted/rotated silhouette and the light's maximum projected shadow.
 export const VIEW = Object.freeze({ left: -160, top: 0, width: 2240, height: 1040 });
@@ -76,12 +76,16 @@ const ACCUMULATE_FRAGMENT = `
 const COMPOSE_FRAGMENT = `
   uniform sampler2D tiles;
   uniform sampler2D shadows;
+  uniform sampler2D entryStick;
+  uniform float entryStickOpacity;
   varying vec2 vUv;
   void main() {
     // Render targets contain premultiplied linear RGBA, including MSAA edge coverage.
     vec4 tile = texture2D(tiles, vUv);
     vec4 shadow = texture2D(shadows, vUv);
     vec4 result = tile + shadow * (1.0 - tile.a);
+    vec4 stick = texture2D(entryStick, vUv) * entryStickOpacity;
+    result = stick + result * (1.0 - stick.a);
     gl_FragColor = vec4(result.rgb / max(result.a, 0.00001), result.a);
     #include <colorspace_fragment>
   }
@@ -151,10 +155,8 @@ export class Mahjong3D {
     this.groups = tiles.map(tile => makeTile(tile, `tile-${tile.index}`));
     this.sideGroups = sideTiles.map(tile => {
       const group = makeTile(tile, `river-${tile.side}-${tile.index}`);
-      // World Z rotation is applied after the face-up Y flip; this preserves
-      // upright, unmirrored artwork from each neighboring player's viewpoint.
-      group.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -tile.rotation)
-        .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
+      // Neighboring rivers stay blue-back up and keep their player orientation.
+      group.rotation.z = -tile.rotation;
       group.userData.face = tile.face.code;
       return group;
     });
@@ -201,6 +203,9 @@ export class Mahjong3D {
     this.sampleTarget = target(true, true, type);
     this.shadowTarget = target(true, false, type);
     this.averageTarget = target(false, false, type);
+    // Allocated at viewport size only during the short scenery fade. The stick
+    // and its real shadow fade together, independently of the tile rivers.
+    this.entryStickTarget = target(true, true, type);
     this.targets = [this.currentTarget, this.sampleTarget, this.shadowTarget, this.averageTarget];
     this.accumulateMaterial = new THREE.ShaderMaterial({
       uniforms: { source: { value: null }, weight: { value: 1 } },
@@ -210,7 +215,7 @@ export class Mahjong3D {
       blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor,
     });
     this.composeMaterial = new THREE.ShaderMaterial({
-      uniforms: { tiles: { value: null }, shadows: { value: this.shadowTarget.texture } },
+      uniforms: { tiles: { value: null }, shadows: { value: this.shadowTarget.texture }, entryStick: { value: this.entryStickTarget.texture }, entryStickOpacity: { value: 0 } },
       vertexShader: QUAD_VERTEX, fragmentShader: COMPOSE_FRAGMENT,
       depthTest: false, depthWrite: false, toneMapped: false, blending: THREE.NoBlending,
     });
@@ -282,6 +287,13 @@ export class Mahjong3D {
     this.world.updateMatrixWorld(true);
   }
 
+  applySidePoses(poses = []) {
+    this.sideGroups.forEach((group, index) => {
+      const transform = tileTransform(poses[index] ?? { theta: 0, q: 1, height: 0 });
+      group.scale.setScalar(transform.scale); group.position.z = transform.z;
+    });
+  }
+
   clearTarget(target) {
     this.renderer.setRenderTarget(target);
     this.renderer.clear(true, true, false);
@@ -299,7 +311,10 @@ export class Mahjong3D {
     this.renderer.render(this.quadScene, this.quadCamera);
   }
 
-  render(currentPoses, sampledPoses, amount, stickPose = REST_STICK, stickSamples = []) {
+  render(currentPoses, sampledPoses, amount, stickPose = REST_STICK, stickSamples = [], entrance = {}) {
+    const opacity = entrance.opacity ?? 1, fading = opacity < 1;
+    this.applySidePoses(entrance.sidePoses);
+    this.stick.visible = !fading;
     this.applyPoses(currentPoses, stickPose);
     this.receiver.visible = true;
     // Casters contribute depth and real shadows, but no color in this pass.
@@ -316,13 +331,28 @@ export class Mahjong3D {
       this.clearTarget(this.averageTarget);
       this.addSample(this.currentTarget.texture, 1 - amount);
       for (const [index, poses] of sampledPoses.entries()) {
+        this.applySidePoses(entrance.sideSamples?.[index]);
         this.applyPoses(poses, stickSamples[index] ?? stickPose);
         this.renderTileTarget(this.sampleTarget);
         this.addSample(this.sampleTarget.texture, amount / sampledPoses.length);
       }
       output = this.averageTarget.texture;
+      this.applySidePoses(entrance.sidePoses);
       this.applyPoses(currentPoses, stickPose);
     }
+    if (fading) {
+      this.entryStickTarget.setSize(this.currentTarget.width, this.currentTarget.height);
+      for (const group of [...this.groups, ...this.sideGroups]) group.visible = false;
+      this.stick.visible = true; this.receiver.visible = true;
+      this.renderer.shadowMap.autoUpdate = true;
+      this.renderTileTarget(this.entryStickTarget);
+      this.renderer.shadowMap.autoUpdate = false;
+      this.receiver.visible = false;
+      for (const group of [...this.groups, ...this.sideGroups]) group.visible = true;
+    } else if (this.entryStickTarget.width !== 1 || this.entryStickTarget.height !== 1) {
+      this.entryStickTarget.setSize(1, 1);
+    }
+    this.composeMaterial.uniforms.entryStickOpacity.value = fading ? opacity : 0;
     this.composeMaterial.uniforms.tiles.value = output;
     this.quad.material = this.composeMaterial;
     this.clearTarget(null); this.renderer.render(this.quadScene, this.quadCamera);
@@ -340,6 +370,7 @@ export class Mahjong3D {
 
   dispose() {
     this.targets.forEach((target) => target.dispose());
+    this.entryStickTarget.dispose();
     this.materials.forEach((material) => material.dispose());
     this.textures.forEach((texture) => texture.dispose());
     Object.values(this.geometries).forEach((geometry) => geometry.dispose());

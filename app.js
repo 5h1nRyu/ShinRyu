@@ -1,10 +1,10 @@
-import { smooth, center, entryScale, flipPose, motionDistance } from './geometry.js?v=20261010-side-rivers';
-import { Mahjong3D } from './mahjong-3d.js?v=20261010-side-rivers';
-import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261010-side-rivers';
-import { flipAt, settleFlips, revealTile, resetTiles } from './tile-interactions.js?v=20261010-side-rivers';
-import { RIICHI_FACES, nextRiichiFace, sideRiverFaces } from './riichi-faces.js?v=20261010-side-rivers';
-import { sideRiverCenters } from './river-layout.js?v=20261010-side-rivers';
-import { drawTableSeams, tableLayout } from './table-surface.js?v=20261010-side-rivers';
+import { smooth, center, entryScale, flipPose, motionDistance } from './geometry.js?v=20261010-loading-entry';
+import { Mahjong3D } from './mahjong-3d.js?v=20261010-loading-entry';
+import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261010-loading-entry';
+import { flipAt, settleFlips, revealTile, resetTiles } from './tile-interactions.js?v=20261010-loading-entry';
+import { RIICHI_FACES, nextRiichiFace, sideRiverFaces } from './riichi-faces.js?v=20261010-loading-entry';
+import { sideRiverCenters } from './river-layout.js?v=20261010-loading-entry';
+import { drawTableSeams, tableLayout } from './table-surface.js?v=20261010-loading-entry';
 import { CONTROL } from './physical-layout.js';
 
 const $ = (id) => document.getElementById(id);
@@ -16,7 +16,8 @@ const FONT = '"Source Han Sans SC", "Noto Sans CJK SC", "Noto Sans SC", "PingFan
 const COLORS = { table: '#0B503D', back: '#2457B8', front: '#F4F0E6' };
 const UNIT_IDS = ['A', 'A', 'A', 'B', 'B', 'B', 'A', 'A', 'A', 'C', 'C', 'D', 'E', 'E', 'F', 'F', 'G', 'G'];
 const UNIT_NAMES = { A: '主图：观察与秩序', B: '简介：牌河视觉档案', C: '项目：网格实验', D: '关于：整理与创作', E: '文字：近处的秩序', F: '图片：图像研究', G: '联系：一起做点什么' };
-let phase = 'loading', epoch = 0, resetCycle = null;
+let phase = 'loading', epoch = 0, loadingEpoch = 0, resetCycle = null;
+const LOADING_FADE_DURATION = 200, SCENERY_FADE_DURATION = 200;
 let hovered = null, pressed = null;
 let raf = 0, pixelScale = 1, orderCounter = 0;
 let mahjong, consoleImage;
@@ -145,6 +146,7 @@ function paintRiichiFace(canvas, face) {
 function drawConsole() {
   const context = ctx;
   context.fillStyle = COLORS.table; context.fillRect(tabletop.left, 0, tabletop.width, tabletop.height);
+  if (!consoleImage) return;
   drawTableSeams(context);
   // The asset's viewBox is the exact visible reference crop; no upper half of
   // the housing exists outside it. Native buttons use the same coordinates.
@@ -225,8 +227,16 @@ function stickPoseAt(time) {
 function render(time) {
   raf = 0;
   if (phase === 'loading') return;
+  if (phase === 'loading-fade') {
+    $('loading-text').style.opacity = String(1 - smooth((time - loadingEpoch) / LOADING_FADE_DURATION));
+    if (time - loadingEpoch < LOADING_FADE_DURATION) { requestRender(); return; }
+    $('loading').hidden = true;
+    scene.style.visibility = 'visible';
+    epoch = time; phase = 'entry';
+  }
   if (phase === 'entry' && time - epoch >= 1100) {
     phase = 'idle';
+    scene.inert = false;
     $('score-stick').disabled = false;
     $('reset').disabled = false;
     $('status').textContent = '十八张牌已落定。点击蓝背牌，逐张揭示内容。';
@@ -260,14 +270,23 @@ function render(time) {
     $('status').textContent = '牌河已重置。点击蓝背牌，可以再次逐张揭示。';
   }
   board.setAttribute('aria-busy', String(phase === 'entry' || Boolean(resetCycle) || tiles.some((tile) => tile.flips.length)));
-  scene.style.opacity = String(smooth((time - epoch) / 200));
+  const sceneryOpacity = smooth((time - epoch) / SCENERY_FADE_DURATION);
+  canvas.style.opacity = String(sceneryOpacity);
+  document.querySelector('.console').style.opacity = String(sceneryOpacity);
   const currentPoses = tiles.map((tile) => poseAt(tile, time));
   const blur = blurParameters(time);
   const sampledPoses = blur.amount > .002
     ? Array.from({ length: 7 }, (_, index) => tiles.map((tile) => poseAt(tile, time - blur.window * index / 6)))
     : [];
   const stickSamples = sampledPoses.map((_, index) => stickPoseAt(time - blur.window * index / 6));
-  mahjong.render(currentPoses, sampledPoses, blur.amount, stickPoseAt(time), stickSamples);
+  const sidePosesAt = (at) => sideTiles.map(tile => {
+    const q = phase === 'entry' ? entryScale(tile.index, at - epoch) : 1;
+    return { theta: 0, q, height: phase === 'entry' ? (q - 1) / .06 : 0 };
+  });
+  mahjong.render(currentPoses, sampledPoses, blur.amount, stickPoseAt(time), stickSamples, {
+    opacity: sceneryOpacity, sidePoses: sidePosesAt(time),
+    sideSamples: sampledPoses.map((_, index) => sidePosesAt(time - blur.window * index / 6)),
+  });
   const stickBounds = mahjong.getStickBounds(), hitHeight = Math.max(44, stickBounds.height);
   Object.assign($('score-stick').style, {
     left: `${stickBounds.x}px`, top: `${stickBounds.y - (hitHeight - stickBounds.height) / 2}px`,
@@ -380,7 +399,7 @@ for (const id of Object.keys(CONTROL_HINTS)) {
 
 $('reset').addEventListener('click', startReset);
 $('score-stick').addEventListener('click', () => {
-  if (!mahjong || phase === 'loading' || phase === 'entry' || stickDrop) return;
+  if (!mahjong || phase === 'loading' || phase === 'loading-fade' || phase === 'entry' || stickDrop) return;
   stickDrop = createStickDrop(Math.random, restingStick); stickEpoch = performance.now();
   $('score-stick').setAttribute('aria-busy', 'true');
   $('score-stick').dataset.motion = 'lifting';
@@ -395,19 +414,28 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) requ
 
 async function initialize() {
   createHitTargets();
+  const style = $('page-style');
+  if (!style.sheet || style.media !== 'all') await new Promise((resolve, reject) => {
+    style.addEventListener('load', resolve, { once: true });
+    style.addEventListener('error', () => reject(new Error('Stylesheet failed to load')), { once: true });
+  });
   await document.fonts.ready;
-  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261010-side-rivers').then((image) => { consoleImage = image; })]);
+  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261010-loading-entry').then((image) => { consoleImage = image; })]);
   mahjong = new Mahjong3D($('mahjong'), tiles, sideTiles);
   updateControlHint();
-  epoch = performance.now();
-  phase = 'entry';
   resize();
+  // Render all passes behind the loader to upload textures and compile shaders
+  // before the shared entry clock starts. No partial scene can become visible.
+  const entryPoses = tiles.map(() => ({ theta: 0, q: 1.06, height: 1 }));
+  const sidePoses = sideTiles.map(() => ({ theta: 0, q: 1.06, height: 1 }));
+  mahjong.render(entryPoses, [entryPoses], 1, REST_STICK, [REST_STICK], { opacity: 0, sidePoses, sideSamples: [sidePoses] });
+  mahjong.renderer.getContext().finish();
+  loadingEpoch = performance.now(); phase = 'loading-fade'; requestRender();
 }
 
 initialize().catch((error) => {
   console.error('牌河资源加载失败', error);
   $('status').textContent = '页面资源加载失败，请刷新后重试。';
-  scene.style.opacity = '1';
-  const fallback = document.createElement('div'); fallback.className = 'no-script';
-  fallback.textContent = '3D 牌河暂时未能启动，请使用支持 WebGL 2 的浏览器并刷新重试。'; scene.append(fallback);
+  $('loading-text').style.opacity = '1';
+  $('loading-text').textContent = '加载失败，请刷新重试。';
 });

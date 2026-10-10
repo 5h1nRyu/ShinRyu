@@ -1,4 +1,4 @@
-import { SPEC, center } from './geometry.js?v=20261010-side-rivers';
+import { SPEC, center } from './geometry.js?v=20261010-loading-entry';
 import { CONTROL } from './physical-layout.js';
 
 // Rotate the main river around the full square control box, including the part
