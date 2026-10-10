@@ -1,7 +1,7 @@
 import * as THREE from './vendor/three.module.js';
-import { SPEC } from './geometry.js?v=20261011-start-button';
+import { SPEC } from './geometry.js?v=20261011-side-reset';
 import { mm } from './physical-layout.js';
-import { STICK, REST_STICK } from './score-stick.js?v=20261011-start-button';
+import { STICK, REST_STICK } from './score-stick.js?v=20261011-side-reset';
 
 // Includes every lifted/rotated silhouette and the light's maximum projected shadow.
 export const VIEW = Object.freeze({ left: -160, top: 0, width: 2240, height: 1040 });
@@ -141,6 +141,7 @@ export class Mahjong3D {
       }
       return this.textures.get(source);
     };
+    this.textureFrom = texture;
     const makeTile = (tile, name) => {
       const group = new THREE.Group(); group.name = name; group.userData.rotation = tile.rotation ?? 0;
       const backCap = toon({ map: texture(tile.back) }), frontCap = toon({ map: texture(tile.fragment) });
@@ -243,8 +244,11 @@ export class Mahjong3D {
     }
   }
 
-  updateTileFront(index) {
-    this.groups[index].children[2].material[0].map.needsUpdate = true;
+  updateTileFront(index, source, faceCode) {
+    const group = this.groups[index], material = group.children[2].material[0];
+    if (source) material.map = this.textureFrom(source);
+    if (faceCode) group.userData.face = faceCode;
+    material.map.needsUpdate = true;
   }
 
   setStickHint(text) {

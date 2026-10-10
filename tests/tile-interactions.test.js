@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { center, flipPose } from '../geometry.js';
 import { sideRiverCenters } from '../river-layout.js';
-import { topLeftTile, yellowAction, rippleDelays, flipAt, settleFlips, revealTiles, resetTiles } from '../tile-interactions.js';
+import { topLeftTile, yellowAction, waveInProgress, tileAction, rippleDelays, flipAt, settleFlips, revealTiles, resetTiles } from '../tile-interactions.js';
 
 const makeTiles = () => [...Array.from({ length: 18 }, (_, index) => center(index)), ...sideRiverCenters('kamicha'), ...sideRiverCenters('shimocha')]
-  .map((position, index) => ({ ...position, index, front: false, flips: [], tween: null }));
+  .map((position, index) => ({ side: 'main', ...position, index, front: false, flips: [], tween: null }));
 const rest = { theta: 0, q: 1, height: 0 };
 const poses = (tiles, time) => tiles.map(tile => {
   const flip = flipAt(tile, time);
@@ -13,7 +13,7 @@ const poses = (tiles, time) => tiles.map(tile => {
     : { theta: tile.front ? Math.PI : 0, q: 1, height: 0 };
 });
 
-test('yellow control starts a closed board at the global top-left and resets an open or moving board', () => {
+test('yellow control labels a closed board start and an open or moving board reset', () => {
   const tiles = makeTiles();
   assert.equal(yellowAction(tiles), 'start');
   const cycle = revealTiles(tiles, topLeftTile(tiles).index, 100, poses(tiles, 100));
@@ -89,23 +89,37 @@ test('reset leaves unopened tiles on their backs and never reveals them first', 
   }
 });
 
-test('reset interrupts a reveal continuously, cancels queued unopened reveals and finishes closed', () => {
+test('reset and every tile click are ignored until the complete reveal wave ends', () => {
   for (const origin of [0, 23, 48]) {
     const tiles = makeTiles(); revealTiles(tiles, origin, 0, tiles.map(() => ({ ...rest, q: 1.04, height: 1 })));
-    const at = 180, before = poses(tiles, at);
-    const active = tiles.filter(tile => tile.flips[0].start <= at), queued = tiles.filter(tile => tile.flips[0].start > at);
-    const activeFlips = new Map(active.map(tile => [tile.index, structuredClone(tile.flips[0])]));
-    const cycle = resetTiles(tiles, at, before);
-    for (const tile of active) {
-      assert.deepEqual(tile.flips[0], activeFlips.get(tile.index));
-      assert.deepEqual(poses(tiles, at)[tile.index], before[tile.index]);
-      assert.ok(tile.flips[1].start >= tile.flips[0].start + 600);
-      assert.equal(tile.flips[1].fromFront, true);
+    for (const at of [0, 180, 650, 1199]) {
+      for (const tile of tiles) settleFlips(tile, at);
+      const before = structuredClone(tiles), beforePoses = poses(tiles, at);
+      assert.equal(waveInProgress(tiles), true);
+      assert.ok(tiles.every(tile => tileAction(tiles, tile) === null));
+      assert.equal(resetTiles(tiles, at, beforePoses), null);
+      assert.deepEqual(tiles, before);
+      assert.deepEqual(poses(tiles, at), beforePoses);
     }
-    for (const tile of queued) { assert.equal(tile.flips.length, 0); assert.equal(tile.front, false); }
-    assert.ok(cycle.end <= at + 1200);
+    for (const tile of tiles) settleFlips(tile, 1200);
+    assert.equal(waveInProgress(tiles), false);
+    assert.ok(tiles.every(tile => tile.front));
+    const cycle = resetTiles(tiles, 1200, poses(tiles, 1200));
+    assert.equal(cycle.end, 2400);
     for (const tile of tiles) settleFlips(tile, cycle.end);
     assert.ok(tiles.every(tile => !tile.front && !tile.flips.length));
     assert.ok(revealTiles(tiles, origin, cycle.end + 1, poses(tiles, cycle.end + 1)));
   }
+});
+
+test('open side rivers reset the board while the open main river remains inactive', () => {
+  const tiles = makeTiles();
+  assert.ok(tiles.every(tile => tileAction(tiles, tile) === 'reveal'));
+  tiles.forEach(tile => tile.front = true);
+  assert.ok(tiles.slice(0, 18).every(tile => tileAction(tiles, tile) === null));
+  assert.ok(tiles.slice(18).every(tile => tileAction(tiles, tile) === 'reset'));
+  const cycle = resetTiles(tiles, 0, poses(tiles, 0));
+  assert.ok(tiles.every(tile => tileAction(tiles, tile) === null));
+  for (const tile of tiles) settleFlips(tile, cycle.end);
+  assert.ok(tiles.every(tile => tileAction(tiles, tile) === 'reveal'));
 });

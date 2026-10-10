@@ -1,4 +1,4 @@
-import { SPEC } from './geometry.js?v=20261011-start-button';
+import { SPEC } from './geometry.js?v=20261011-side-reset';
 
 export function topLeftTile(tiles) {
   return tiles.reduce((first, tile) => !first || tile.y < first.y || (tile.y === first.y && tile.x < first.x) ? tile : first, null);
@@ -6,6 +6,15 @@ export function topLeftTile(tiles) {
 
 export function yellowAction(tiles) {
   return tiles.every(tile => !tile.front && !tile.flips.length) ? 'start' : 'reset';
+}
+
+export function waveInProgress(tiles) {
+  return tiles.some(tile => tile.flips.length);
+}
+
+export function tileAction(tiles, tile) {
+  if (waveInProgress(tiles)) return null;
+  return tile.front ? (tile.side === 'main' ? null : 'reset') : 'reveal';
 }
 
 export function rippleDelays(tiles, origin) {
@@ -42,22 +51,15 @@ export function revealTiles(tiles, originIndex, time, poses) {
 }
 
 export function resetTiles(tiles, time, poses) {
+  for (const tile of tiles) settleFlips(tile, time);
+  // A reset can begin only after the entire reveal wave has finished.
+  if (waveInProgress(tiles)) return null;
   const origin = topLeftTile(tiles), delays = rippleDelays(tiles, origin);
   tiles.forEach((tile, index) => {
-    settleFlips(tile, time);
-    const current = flipAt(tile, time), pose = poses[index];
-    // Cancel unopened, queued reveals. A reveal already rotating finishes
-    // continuously, then closes when the reset wave has reached that position.
-    const activeReveal = current && !current.fromFront && current.start <= time;
-    if (activeReveal) {
-      tile.flips = [{ ...current }, flipFrom(Math.max(time + delays[index], current.start + SPEC.flipDuration), true, { q: 1, height: 0 })];
-    } else if (tile.front) {
-      tile.flips = [flipFrom(time + delays[index], true, pose)];
-    } else {
-      tile.flips = [];
-    }
+    const pose = poses[index];
+    tile.flips = tile.front ? [flipFrom(time + delays[index], true, pose)] : [];
     tile.tween = null;
-    if (!tile.front && !activeReveal && pose.q !== 1) tile.tween = { from: pose.q, to: 1, duration: 200, start: time };
+    if (!tile.front && pose.q !== 1) tile.tween = { from: pose.q, to: 1, duration: 200, start: time };
   });
   return { origin: origin.index, end: Math.max(time, ...tiles.flatMap(tile => tile.flips.map(flip => flip.start + SPEC.flipDuration))) };
 }

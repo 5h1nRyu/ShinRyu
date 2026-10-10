@@ -8,9 +8,9 @@ function random(seed) {
   return () => { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 4294967296; };
 }
 
-test('the initial stick sits flat at the slot midpoint with a plus-three-degree screen angle', () => {
+test('the initial stick sits flat at the slot midpoint with a minus-three-degree screen angle', () => {
   const axis = new Vector3(1, 0, 0).applyQuaternion(new Quaternion().fromArray(REST_STICK.quaternion));
-  assert.equal(INITIAL_STICK_ANGLE, 3 * Math.PI / 180);
+  assert.equal(INITIAL_STICK_ANGLE, -3 * Math.PI / 180);
   assert.ok(Math.abs(Math.atan2(-axis.y, axis.x) - INITIAL_STICK_ANGLE) < .000001);
   assert.equal(REST_STICK.x, STICK.x); assert.equal(REST_STICK.y, STICK.y);
   assert.ok(Math.abs(stickClearance(REST_STICK)) < .000001);
