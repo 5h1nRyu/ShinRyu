@@ -1,11 +1,12 @@
-import { SPEC } from './geometry.js?v=20261011-side-reset';
+import { SPEC } from './geometry.js?v=20261011-ripple-origin';
 
 export function topLeftTile(tiles) {
   return tiles.reduce((first, tile) => !first || tile.y < first.y || (tile.y === first.y && tile.x < first.x) ? tile : first, null);
 }
 
 export function yellowAction(tiles) {
-  return tiles.every(tile => !tile.front && !tile.flips.length) ? 'start' : 'reset';
+  const revealing = tiles.some(tile => tile.flips.some(flip => !flip.fromFront));
+  return revealing || tiles.every(tile => !tile.front && !tile.flips.length) ? 'start' : 'reset';
 }
 
 export function waveInProgress(tiles) {
@@ -50,11 +51,13 @@ export function revealTiles(tiles, originIndex, time, poses) {
   return { origin: origin.index, end: Math.max(time, ...tiles.flatMap(tile => tile.flips.map(flip => flip.start + SPEC.flipDuration))) };
 }
 
-export function resetTiles(tiles, time, poses) {
+export function resetTiles(tiles, time, poses, originIndex = null) {
   for (const tile of tiles) settleFlips(tile, time);
   // A reset can begin only after the entire reveal wave has finished.
   if (waveInProgress(tiles)) return null;
-  const origin = topLeftTile(tiles), delays = rippleDelays(tiles, origin);
+  const origin = originIndex === null ? topLeftTile(tiles) : tiles.find(tile => tile.index === originIndex);
+  if (!origin) return null;
+  const delays = rippleDelays(tiles, origin);
   tiles.forEach((tile, index) => {
     const pose = poses[index];
     tile.flips = tile.front ? [flipFrom(time + delays[index], true, pose)] : [];

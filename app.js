@@ -1,10 +1,10 @@
-import { smooth, center, entryScale, flipPose, motionDistance } from './geometry.js?v=20261011-side-reset';
-import { Mahjong3D, VIEW } from './mahjong-3d.js?v=20261011-side-reset';
-import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261011-side-reset';
-import { flipAt, settleFlips, revealTiles, resetTiles, topLeftTile, yellowAction, waveInProgress, tileAction } from './tile-interactions.js?v=20261011-side-reset';
-import { RIICHI_FACES, nextRiichiFace, sideRiverFaces } from './riichi-faces.js?v=20261011-side-reset';
-import { sideRiverCenters } from './river-layout.js?v=20261011-side-reset';
-import { drawTableSeams, tableLayout } from './table-surface.js?v=20261011-side-reset';
+import { smooth, center, entryScale, flipPose, motionDistance } from './geometry.js?v=20261011-ripple-origin';
+import { Mahjong3D, VIEW } from './mahjong-3d.js?v=20261011-ripple-origin';
+import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261011-ripple-origin';
+import { flipAt, settleFlips, revealTiles, resetTiles, topLeftTile, yellowAction, waveInProgress, tileAction } from './tile-interactions.js?v=20261011-ripple-origin';
+import { RIICHI_FACES, nextRiichiFace, sideRiverFaces } from './riichi-faces.js?v=20261011-ripple-origin';
+import { sideRiverCenters } from './river-layout.js?v=20261011-ripple-origin';
+import { drawTableSeams, tableLayout } from './table-surface.js?v=20261011-ripple-origin';
 import { CONTROL } from './physical-layout.js';
 
 const $ = (id) => document.getElementById(id);
@@ -268,7 +268,7 @@ function render(time) {
     changeSideFaces();
     $('status').textContent = '三处牌河已恢复蓝背。点击黄色灯开始，或点击任意蓝背牌再次展开。';
   }
-  if (interactive() && tiles.every(tile => tile.front && !tile.flips.length)) $('status').textContent = '三处牌河全部翻开。点击黄色灯或两侧牌河，从全局左上方开始波纹合牌并更换两侧牌面。';
+  if (interactive() && tiles.every(tile => tile.front && !tile.flips.length)) $('status').textContent = '三处牌河全部翻开。点击两侧正面牌，以它为中心波纹合牌；黄色灯从全局左上方合牌。合完后更换两侧牌面。';
   board.setAttribute('aria-busy', String(phase === 'entry' || Boolean(resetCycle) || tiles.some((tile) => tile.flips.length)));
   const sceneryOpacity = smooth((time - epoch) / SCENERY_FADE_DURATION);
   canvas.style.opacity = String(sceneryOpacity);
@@ -318,25 +318,26 @@ function startReveal(tile) {
   requestRender();
 }
 
-function startReset() {
+function startReset(originTile = null) {
   if (!interactive()) return;
   const time = performance.now();
   for (const tile of tiles) settleFlips(tile, time);
   if (waveInProgress(tiles)) return;
   if (yellowAction(tiles) === 'start') { startReveal(topLeftTile(tiles)); return; }
-  resetCycle = resetTiles(tiles, time, tiles.map((tile) => poseAt(tile, time)));
+  const origin = originTile ?? topLeftTile(tiles);
+  resetCycle = resetTiles(tiles, time, tiles.map((tile) => poseAt(tile, time)), origin.index);
   if (!resetCycle) return;
   hovered = null; pressed = null; phase = 'reset-conceal';
   for (const tile of tiles) updateTileLabel(tile);
   $('reset').disabled = true; board.setAttribute('aria-busy', 'true');
-  $('status').textContent = '正在从三处牌河中左上方的一张开始波纹合牌。';
+  $('status').textContent = `正在以${tilePositionLabel(origin)}为中心波纹合牌。`;
   syncControlState();
   requestRender();
 }
 
 function updateTileLabel(tile) {
   const label = tile.front ? tile.riichiFace?.label ?? UNIT_NAMES[tile.unit] : '揭示档案';
-  const action = tile.front && tile.side !== 'main' ? '，点击重置所有牌并更换两侧牌面' : '';
+  const action = tile.front && tile.side !== 'main' ? '，点击以此牌为中心波纹合牌并更换两侧牌面' : '';
   tile.button.setAttribute('aria-label', `${label}，${tilePositionLabel(tile)}${action}`);
   tile.button.setAttribute('aria-busy', String(Boolean(tile.flips.length)));
   tile.button.dataset.face = tile.front ? 'front' : 'back';
@@ -372,7 +373,7 @@ function createHitTargets() {
       if (!interactive()) return;
       pressed = null;
       const action = tileAction(tiles, tile);
-      if (action === 'reset') startReset();
+      if (action === 'reset') startReset(tile);
       else if (action === 'reveal') startReveal(tile);
     });
     button.addEventListener('keydown', (event) => {
@@ -427,7 +428,7 @@ for (const id of Object.keys(CONTROL_HINTS)) {
   });
 }
 
-$('reset').addEventListener('click', startReset);
+$('reset').addEventListener('click', () => startReset());
 $('score-stick').addEventListener('click', () => {
   if (!mahjong || phase === 'loading' || phase === 'loading-fade' || phase === 'entry' || stickDrop) return;
   stickDrop = createStickDrop(Math.random, restingStick); stickEpoch = performance.now();
@@ -450,7 +451,7 @@ async function initialize() {
     style.addEventListener('error', () => reject(new Error('Stylesheet failed to load')), { once: true });
   });
   await document.fonts.ready;
-  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261011-side-reset').then((image) => { consoleImage = image; })]);
+  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261011-ripple-origin').then((image) => { consoleImage = image; })]);
   mahjong = new Mahjong3D($('mahjong'), mainTiles, sideTiles);
   updateControlHint();
   resize();

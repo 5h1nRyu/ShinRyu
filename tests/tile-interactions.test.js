@@ -13,12 +13,17 @@ const poses = (tiles, time) => tiles.map(tile => {
     : { theta: tile.front ? Math.PI : 0, q: 1, height: 0 };
 });
 
-test('yellow control labels a closed board start and an open or moving board reset', () => {
+test('yellow hint stays start until the entire reveal wave ends and stays reset during closing', () => {
   const tiles = makeTiles();
   assert.equal(yellowAction(tiles), 'start');
   const cycle = revealTiles(tiles, topLeftTile(tiles).index, 100, poses(tiles, 100));
   assert.equal(cycle.origin, 30); assert.equal(tiles[30].flips[0].start, 100);
-  assert.equal(yellowAction(tiles), 'reset');
+  assert.equal(yellowAction(tiles), 'start');
+  for (const time of [280, 750, cycle.end - 1]) {
+    for (const tile of tiles) settleFlips(tile, time);
+    assert.equal(yellowAction(tiles), 'start');
+    assert.equal(waveInProgress(tiles), true);
+  }
   for (const tile of tiles) settleFlips(tile, cycle.end);
   assert.equal(yellowAction(tiles), 'reset');
   const closing = resetTiles(tiles, 1500, poses(tiles, 1500));
@@ -73,6 +78,25 @@ test('reset begins at the spatial top-left of all 54 tiles and directly closes e
   }
   for (const tile of tiles) settleFlips(tile, cycle.end + 500);
   assert.ok(tiles.every(tile => !tile.front && !tile.flips.length));
+});
+
+test('each side tile originates a closing ripple at its own position', () => {
+  for (let originIndex = 18; originIndex < 54; originIndex++) {
+    const tiles = makeTiles(); tiles.forEach(tile => tile.front = true);
+    const cycle = resetTiles(tiles, 1000, poses(tiles, 1000), originIndex);
+    assert.deepEqual(cycle, { origin: originIndex, end: 2200 });
+    assert.equal(tiles[originIndex].flips[0].start, 1000);
+    const delays = rippleDelays(tiles, tiles[originIndex]);
+    for (const [index, tile] of tiles.entries()) {
+      assert.equal(tile.flips[0].start, 1000 + delays[index]);
+      assert.equal(tile.flips[0].fromFront, true);
+    }
+    const ordered = tiles.map(tile => ({ distance: Math.hypot(tile.x - tiles[originIndex].x, tile.y - tiles[originIndex].y), start: tile.flips[0].start }))
+      .sort((a, b) => a.distance - b.distance);
+    for (let i = 1; i < ordered.length; i++) assert.ok(ordered[i].start >= ordered[i - 1].start);
+    for (const tile of tiles) settleFlips(tile, cycle.end);
+    assert.ok(tiles.every(tile => !tile.front && !tile.flips.length));
+  }
 });
 
 test('reset leaves unopened tiles on their backs and never reveals them first', () => {
