@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { center, flipPose } from '../geometry.js';
 import { sideRiverCenters } from '../river-layout.js';
-import { topLeftTile, rippleDelays, flipAt, settleFlips, revealTiles, resetTiles } from '../tile-interactions.js';
+import { topLeftTile, yellowAction, rippleDelays, flipAt, settleFlips, revealTiles, resetTiles } from '../tile-interactions.js';
 
 const makeTiles = () => [...Array.from({ length: 18 }, (_, index) => center(index)), ...sideRiverCenters('kamicha'), ...sideRiverCenters('shimocha')]
   .map((position, index) => ({ ...position, index, front: false, flips: [], tween: null }));
@@ -11,6 +11,22 @@ const poses = (tiles, time) => tiles.map(tile => {
   const flip = flipAt(tile, time);
   return flip ? flipPose(time - flip.start, flip.from, flip.fromFront, flip.fromHeight)
     : { theta: tile.front ? Math.PI : 0, q: 1, height: 0 };
+});
+
+test('yellow control starts a closed board at the global top-left and resets an open or moving board', () => {
+  const tiles = makeTiles();
+  assert.equal(yellowAction(tiles), 'start');
+  const cycle = revealTiles(tiles, topLeftTile(tiles).index, 100, poses(tiles, 100));
+  assert.equal(cycle.origin, 30); assert.equal(tiles[30].flips[0].start, 100);
+  assert.equal(yellowAction(tiles), 'reset');
+  for (const tile of tiles) settleFlips(tile, cycle.end);
+  assert.equal(yellowAction(tiles), 'reset');
+  const closing = resetTiles(tiles, 1500, poses(tiles, 1500));
+  assert.equal(yellowAction(tiles), 'reset');
+  for (const tile of tiles) settleFlips(tile, closing.end);
+  assert.equal(yellowAction(tiles), 'start');
+  tiles[0].front = true;
+  assert.equal(yellowAction(tiles), 'reset');
 });
 
 test('every tile across all three rivers can originate a spatial reveal wave', () => {

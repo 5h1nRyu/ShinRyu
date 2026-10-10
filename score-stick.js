@@ -5,7 +5,7 @@ import { REAL_SIZE, mm, STICK_CENTER } from './physical-layout.js';
 // The same millimeter conversion as the tiles and 2D control box.
 export const STICK = Object.freeze({ length: mm(REAL_SIZE.stick.length), width: mm(REAL_SIZE.stick.width), thickness: mm(REAL_SIZE.stick.thickness), x: STICK_CENTER.x, y: -STICK_CENTER.y });
 export const MAX_STICK_YAW = 8 * Math.PI / 180;
-export const INITIAL_STICK_ANGLE = -2 * Math.PI / 180;
+export const INITIAL_STICK_ANGLE = 3 * Math.PI / 180;
 // Screen Y points down; invert the screen angle for the 3D world's Z rotation.
 export const REST_STICK = Object.freeze({ x: STICK.x, y: STICK.y, z: STICK.thickness / 2, quaternion: Object.freeze(new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), -INITIAL_STICK_ANGLE).toArray()) });
 const STEP = 1 / 240, PICKUP = 360, GRAVITY = 1600;

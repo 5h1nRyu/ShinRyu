@@ -1,10 +1,10 @@
-import { smooth, center, entryScale, flipPose, motionDistance } from './geometry.js?v=20261011-all-rivers';
-import { Mahjong3D, VIEW } from './mahjong-3d.js?v=20261011-all-rivers';
-import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261011-all-rivers';
-import { flipAt, settleFlips, revealTiles, resetTiles } from './tile-interactions.js?v=20261011-all-rivers';
-import { RIICHI_FACES, nextRiichiFace, sideRiverFaces } from './riichi-faces.js?v=20261011-all-rivers';
-import { sideRiverCenters } from './river-layout.js?v=20261011-all-rivers';
-import { drawTableSeams, tableLayout } from './table-surface.js?v=20261011-all-rivers';
+import { smooth, center, entryScale, flipPose, motionDistance } from './geometry.js?v=20261011-start-button';
+import { Mahjong3D, VIEW } from './mahjong-3d.js?v=20261011-start-button';
+import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261011-start-button';
+import { flipAt, settleFlips, revealTiles, resetTiles, topLeftTile, yellowAction } from './tile-interactions.js?v=20261011-start-button';
+import { RIICHI_FACES, nextRiichiFace, sideRiverFaces } from './riichi-faces.js?v=20261011-start-button';
+import { sideRiverCenters } from './river-layout.js?v=20261011-start-button';
+import { drawTableSeams, tableLayout } from './table-surface.js?v=20261011-start-button';
 import { CONTROL } from './physical-layout.js';
 
 const $ = (id) => document.getElementById(id);
@@ -242,7 +242,7 @@ function render(time) {
     scene.inert = false;
     $('score-stick').disabled = false;
     $('reset').disabled = false;
-    $('status').textContent = '三处牌河已落定。点击任意蓝背牌，以它为中心波纹翻开全部牌。';
+    $('status').textContent = '三处牌河已落定。点击黄色灯开始，或点击任意蓝背牌，以它为中心波纹翻开全部牌。';
   }
   if (stickDrop && time >= stickEpoch + stickDrop.duration) {
     restingStick = stickDrop.settled; stickDrop = null;
@@ -259,7 +259,7 @@ function render(time) {
   if (resetCycle && time >= resetCycle.end) {
     resetCycle = null; phase = 'idle'; $('reset').disabled = false;
     changeRiichiFace();
-    $('status').textContent = '三处牌河已恢复蓝背。点击任意蓝背牌，再次以它为中心波纹翻开全部牌。';
+    $('status').textContent = '三处牌河已恢复蓝背。点击黄色灯开始，或点击任意蓝背牌再次展开。';
   }
   if (interactive() && tiles.every(tile => tile.front && !tile.flips.length)) $('status').textContent = '三处牌河全部翻开。点击黄色灯，从所有牌中左上方的一张开始波纹合牌。';
   board.setAttribute('aria-busy', String(phase === 'entry' || Boolean(resetCycle) || tiles.some((tile) => tile.flips.length)));
@@ -272,6 +272,7 @@ function render(time) {
     ? Array.from({ length: 7 }, (_, index) => tiles.map((tile) => poseAt(tile, time - blur.window * index / 6)))
     : [];
   const stickSamples = sampledPoses.map((_, index) => stickPoseAt(time - blur.window * index / 6));
+  syncControlState();
   mahjong.render(currentPoses, sampledPoses, blur.amount, stickPoseAt(time), stickSamples, { opacity: sceneryOpacity });
   const stickBounds = mahjong.getStickBounds(), hitHeight = Math.max(44, stickBounds.height);
   Object.assign($('score-stick').style, {
@@ -306,6 +307,7 @@ function startReveal(tile) {
   for (const candidate of tiles) updateTileLabel(candidate);
   board.setAttribute('aria-busy', 'true');
   $('status').textContent = `正在以${tilePositionLabel(tile)}为中心波纹翻开三处牌河。`;
+  syncControlState();
   requestRender();
 }
 
@@ -313,11 +315,13 @@ function startReset() {
   if (!interactive()) return;
   const time = performance.now();
   for (const tile of tiles) settleFlips(tile, time);
+  if (yellowAction(tiles) === 'start') { startReveal(topLeftTile(tiles)); return; }
   resetCycle = resetTiles(tiles, time, tiles.map((tile) => poseAt(tile, time)));
   hovered = null; pressed = null; phase = 'reset-conceal';
   for (const tile of tiles) updateTileLabel(tile);
   $('reset').disabled = true; board.setAttribute('aria-busy', 'true');
   $('status').textContent = '正在从三处牌河中左上方的一张开始波纹合牌。';
+  syncControlState();
   requestRender();
 }
 
@@ -377,9 +381,17 @@ function createHitTargets() {
   }
 }
 
+function syncControlState() {
+  const action = yellowAction(tiles), label = action === 'start' ? '开始' : '重置';
+  const control = $('reset');
+  control.dataset.action = action;
+  control.setAttribute('aria-label', `黄色灯${label}：从所有牌中左上方的一张开始波纹${action === 'start' ? '展开' : '合牌'}`);
+  const current = hoveredControl ?? focusedControl;
+  mahjong?.setStickHint(current === 'reset' ? label : CONTROL_HINTS[current] ?? '');
+}
+
 function updateControlHint() {
-  if (!mahjong) return;
-  mahjong.setStickHint(CONTROL_HINTS[hoveredControl ?? focusedControl] ?? '');
+  syncControlState();
   requestRender();
 }
 
@@ -425,7 +437,7 @@ async function initialize() {
     style.addEventListener('error', () => reject(new Error('Stylesheet failed to load')), { once: true });
   });
   await document.fonts.ready;
-  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261011-all-rivers').then((image) => { consoleImage = image; })]);
+  await Promise.all([buildTextures(), loadImage('./assets/control-box.svg?v=20261011-start-button').then((image) => { consoleImage = image; })]);
   mahjong = new Mahjong3D($('mahjong'), mainTiles, sideTiles);
   updateControlHint();
   resize();

@@ -1,7 +1,11 @@
-import { SPEC } from './geometry.js?v=20261011-all-rivers';
+import { SPEC } from './geometry.js?v=20261011-start-button';
 
 export function topLeftTile(tiles) {
   return tiles.reduce((first, tile) => !first || tile.y < first.y || (tile.y === first.y && tile.x < first.x) ? tile : first, null);
+}
+
+export function yellowAction(tiles) {
+  return tiles.every(tile => !tile.front && !tile.flips.length) ? 'start' : 'reset';
 }
 
 export function rippleDelays(tiles, origin) {

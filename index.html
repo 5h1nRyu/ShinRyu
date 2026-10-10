@@ -13,9 +13,9 @@
       #loading[hidden] { display: none; }
     </style>
     <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
-    <link id="page-style" rel="stylesheet" href="./styles.css?v=20261011-all-rivers" media="print" onload="this.media='all'">
-    <noscript><link rel="stylesheet" href="./styles.css?v=20261011-all-rivers"></noscript>
-    <script src="./app.js?v=20261011-all-rivers" type="module"></script>
+    <link id="page-style" rel="stylesheet" href="./styles.css?v=20261011-start-button" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="./styles.css?v=20261011-start-button"></noscript>
+    <script src="./app.js?v=20261011-start-button" type="module"></script>
   </head>
   <body>
     <div id="loading" role="status" aria-live="polite"><span id="loading-text">loading</span></div>
@@ -25,7 +25,7 @@
           <canvas id="table" width="1920" height="1080" aria-hidden="true"></canvas>
           <canvas id="mahjong" width="2240" height="1040" aria-hidden="true"></canvas>
           <header class="console" aria-label="麻将桌控制盒">
-            <button id="reset" class="mechanical reset" type="button" aria-label="黄色灯重置：从所有牌中左上方的一张开始波纹合牌" disabled>
+            <button id="reset" class="mechanical reset" type="button" data-action="start" aria-label="黄色灯开始：从所有牌中左上方的一张开始波纹展开" disabled>
               <span class="button-top" aria-hidden="true"></span>
             </button>
             <a id="dealer" class="mechanical dealer" href="https://github.com/5h1nRyu" target="_blank" rel="noopener noreferrer" aria-label="github（新标签页打开）"></a>
