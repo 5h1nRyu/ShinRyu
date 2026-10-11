@@ -42,6 +42,13 @@
       <ellipse cx="18" cy="16" rx="3.1" ry="1.8" fill="#746e85" opacity=".68"/>
       <ellipse cx="25" cy="4" rx="1.2" ry=".7" fill="#c0a49c" opacity=".35"/>
     </pattern>
+    <!-- One channel design, reused at all three player orientations. -->
+    <g id="riichi-channel">
+      <rect x="-2" y="-2" width="400" height="56" rx="28" fill="#45434d" opacity=".45" filter="url(#soft)"/>
+      <rect width="395" height="53" rx="26.5" fill="url(#slot)" stroke="#74727d" stroke-width="1.3"/>
+      <path d="M26 2H368Q391 2 392 23" fill="none" stroke="#30333c" stroke-width="3" opacity=".55" filter="url(#soft)"/>
+      <path d="M22 47H372" fill="none" stroke="#98909e" stroke-width="2" opacity=".35" filter="url(#soft)"/>
+    </g>
     <clipPath id="housingClip"><path d="M8-440H688V230Q688 248 669 249H26Q8 249 7 232Z"/></clipPath>
     <clipPath id="panelClip"><path d="M94-350H599V108Q599 151 555 154H140Q94 151 94 109Z"/></clipPath>
   </defs>
@@ -51,10 +58,8 @@
   <g clip-path="url(#housingClip)">
     <rect x="7" y="-440" width="682" height="690" fill="url(#plastic)" filter="url(#grain)"/>
     <path d="M9-200V231Q10 247 27 247H668Q684 246 685 230V-200" fill="none" stroke="url(#edge)" stroke-width="6"/>
-    <path d="M31-220H82V76Q82 103 55 105Q31 105 30 79Z" fill="#474652"/>
-    <path d="M37-220H75V77Q75 96 56 97Q38 97 38 77Z" fill="url(#slot)" stroke="#82808b" stroke-width="1.4"/>
-    <path d="M617-220H668V76Q668 104 641 106Q617 105 617 79Z" fill="#474652"/>
-    <path d="M623-220H661V77Q661 96 642 97Q624 97 624 77Z" fill="url(#slot)" stroke="#82808b" stroke-width="1.4"/>
+    <use href="#riichi-channel" transform="translate(30 105) rotate(-90)"/>
+    <use href="#riichi-channel" transform="translate(616 106) rotate(-90)"/>
     <path d="M93-350H600V110Q600 155 554 157H139Q92 155 92 110Z" fill="#24232c" stroke="#919099" stroke-width="1.8"/>
     <g clip-path="url(#panelClip)">
       <rect x="94" y="-350" width="505" height="506" fill="url(#speckles)"/>
@@ -86,9 +91,6 @@
     <circle cx="532" cy="88" r="32" fill="url(#blue)" stroke="#f4ffff" stroke-width="3"/>
     <ellipse cx="520" cy="76" rx="13" ry="10" fill="#f0ffff" opacity=".65" filter="url(#soft)"/>
     <!-- Recessed riichi-stick channel. -->
-    <rect x="146" y="168" width="400" height="56" rx="28" fill="#45434d" opacity=".45" filter="url(#soft)"/>
-    <rect x="148" y="170" width="395" height="53" rx="26.5" fill="url(#slot)" stroke="#74727d" stroke-width="1.3"/>
-    <path d="M174 172H516Q539 172 540 193" fill="none" stroke="#30333c" stroke-width="3" opacity=".55" filter="url(#soft)"/>
-    <path d="M170 217H520" fill="none" stroke="#98909e" stroke-width="2" opacity=".35" filter="url(#soft)"/>
+    <use href="#riichi-channel" x="148" y="170"/>
   </g>
 </svg>

@@ -1,4 +1,4 @@
-import { SPEC } from './geometry.js?v=20261011-ripple-origin';
+import { SPEC } from './geometry.js?v=20261011-blank-fronts';
 
 export function topLeftTile(tiles) {
   return tiles.reduce((first, tile) => !first || tile.y < first.y || (tile.y === first.y && tile.x < first.x) ? tile : first, null);
