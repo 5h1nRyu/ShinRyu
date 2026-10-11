@@ -15,7 +15,7 @@ export function waveInProgress(tiles) {
 
 export function tileAction(tiles, tile) {
   if (waveInProgress(tiles)) return null;
-  return tile.front ? (tile.side === 'main' ? null : 'reset') : 'reveal';
+  return tile.front ? (tile.side === 'main' ? 'archive' : 'reset') : 'reveal';
 }
 
 export function rippleDelays(tiles, origin) {

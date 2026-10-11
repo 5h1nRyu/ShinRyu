@@ -1,11 +1,12 @@
 import { smooth, center, entryScale, flipPose, motionDistance } from './geometry.js?v=20261011-blank-fronts';
 import { Mahjong3D, VIEW } from './mahjong-3d.js?v=20261011-blank-fronts';
 import { REST_STICK, STICK_PICKUP_DURATION, createStickDrop, stickMotionDistance } from './score-stick.js?v=20261011-blank-fronts';
-import { flipAt, settleFlips, revealTiles, resetTiles, topLeftTile, yellowAction, waveInProgress, tileAction } from './tile-interactions.js?v=20261011-blank-fronts';
+import { flipAt, settleFlips, revealTiles, resetTiles, topLeftTile, yellowAction, waveInProgress, tileAction } from './tile-interactions.js?v=20261011-v3';
 import { RIICHI_FACES, sideRiverFaces } from './riichi-faces.js?v=20261011-blank-fronts';
 import { sideRiverCenters } from './river-layout.js?v=20261011-blank-fronts';
 import { drawTableSeams, tableLayout } from './table-surface.js?v=20261011-blank-fronts';
 import { CONTROL } from './physical-layout.js';
+import { Archive } from './archive.js';
 
 const $ = (id) => document.getElementById(id);
 const scene = $('scene'), board = $('board'), canvas = $('table');
@@ -31,6 +32,32 @@ const sideTiles = [...sideRiverCenters('kamicha'), ...sideRiverCenters('shimocha
 }));
 const tiles = [...mainTiles, ...sideTiles];
 let tabletop;
+let tablePaused = false, initialization;
+const archive = new Archive({
+  capture(index) {
+    if (!mahjong || !mainTiles[index]?.front || waveInProgress(tiles)) return null;
+    // WebGL's default framebuffer is only readable immediately after rendering.
+    render(performance.now());
+    const bounds = mahjong.getTileBounds(index), scale = tabletop.scale;
+    const rect = { x: tabletop.sceneLeft + bounds.x * scale, y: tabletop.sceneTop + bounds.y * scale,
+      width: bounds.width * scale, height: bounds.height * scale };
+    const source = $('mahjong'), output = document.createElement('canvas');
+    output.width = Math.max(1, Math.ceil(rect.width * devicePixelRatio));
+    output.height = Math.max(1, Math.ceil(rect.height * devicePixelRatio));
+    output.getContext('2d').drawImage(source,
+      (bounds.x - VIEW.left) * source.width / VIEW.width, (bounds.y - VIEW.top) * source.height / VIEW.height,
+      bounds.width * source.width / VIEW.width, bounds.height * source.height / VIEW.height,
+      0, 0, output.width, output.height);
+    return { rect, radius: 8 * scale, canvas: output };
+  },
+  suspend() { tablePaused = true; cancelAnimationFrame(raf); raf = 0; },
+  restore() {
+    tablePaused = false;
+    if (!initialization) { $('loading').hidden = false; initialization = initialize(); initialization.catch(showLoadError); }
+    else { resize(); requestRender(); }
+  },
+});
+window.archive = archive;
 
 function roundRect(context, x, y, width, height, radius, fill, stroke) {
   if (width <= 0 || height <= 0) return;
@@ -181,6 +208,7 @@ function stickPoseAt(time) {
 
 function render(time) {
   raf = 0;
+  if (tablePaused) return;
   if (phase === 'loading') return;
   if (phase === 'loading-fade') {
     $('loading-text').style.opacity = String(1 - smooth((time - loadingEpoch) / LOADING_FADE_DURATION));
@@ -213,7 +241,7 @@ function render(time) {
     changeSideFaces();
     $('status').textContent = '三处牌河已恢复蓝背。点击黄色灯开始，或点击任意蓝背牌再次展开。';
   }
-  if (interactive() && tiles.every(tile => tile.front && !tile.flips.length)) $('status').textContent = '三处牌河全部翻开。点击两侧正面牌，以它为中心波纹合牌；黄色灯从全局左上方合牌。合完后更换两侧牌面。';
+  if (interactive() && tiles.every(tile => tile.front && !tile.flips.length)) $('status').textContent = '三处牌河全部翻开。点击下方正面牌进入牌河海报；点击两侧正面牌波纹合牌。';
   board.setAttribute('aria-busy', String(phase === 'entry' || Boolean(resetCycle) || tiles.some((tile) => tile.flips.length)));
   const sceneryOpacity = smooth((time - epoch) / SCENERY_FADE_DURATION);
   canvas.style.opacity = String(sceneryOpacity);
@@ -249,7 +277,7 @@ function render(time) {
   if (moving) requestRender();
 }
 
-function requestRender() { if (!raf) raf = requestAnimationFrame(render); }
+function requestRender() { if (!raf && !tablePaused) raf = requestAnimationFrame(render); }
 
 function startReveal(tile) {
   if (!interactive()) return;
@@ -282,7 +310,7 @@ function startReset(originTile = null) {
 
 function updateTileLabel(tile) {
   const label = tile.front ? tile.riichiFace?.label ?? '空白牌' : '未翻开的牌';
-  const action = tile.front && tile.side !== 'main' ? '，点击以此牌为中心波纹合牌并更换两侧牌面' : '';
+  const action = tile.front ? tile.side === 'main' ? '，点击进入牌河海报' : '，点击以此牌为中心波纹合牌并更换两侧牌面' : '';
   tile.button.setAttribute('aria-label', `${label}，${tilePositionLabel(tile)}${action}`);
   tile.button.setAttribute('aria-busy', String(Boolean(tile.flips.length)));
   tile.button.dataset.face = tile.front ? 'front' : 'back';
@@ -293,7 +321,7 @@ function tilePositionLabel(tile) {
   return `${river}第${Math.floor(tile.riverIndex / 6) + 1}行第${tile.riverIndex % 6 + 1}列`;
 }
 
-function interactive() { return phase === 'idle'; }
+function interactive() { return phase === 'idle' && !archive.active && !archive.pending; }
 
 function createHitTargets() {
   for (const tile of tiles) {
@@ -314,12 +342,13 @@ function createHitTargets() {
       pressed = tile.index; tweenTo(tile, 1.015, 70);
     });
     button.addEventListener('pointercancel', () => { pressed = null; tweenTo(tile, hovered === tile.index ? 1.04 : 1, 200); });
-    button.addEventListener('click', () => {
+    button.addEventListener('click', (event) => {
       if (!interactive()) return;
       pressed = null;
       const action = tileAction(tiles, tile);
       if (action === 'reset') startReset(tile);
       else if (action === 'reveal') startReveal(tile);
+      else if (action === 'archive') archive.open(tile.riverIndex, event.detail === 0);
     });
     button.addEventListener('keydown', (event) => {
       if (!interactive()) return;
@@ -408,9 +437,12 @@ async function initialize() {
   loadingEpoch = performance.now(); phase = 'loading-fade'; requestRender();
 }
 
-initialize().catch((error) => {
+function showLoadError(error) {
   console.error('牌河资源加载失败', error);
   $('status').textContent = '页面资源加载失败，请刷新后重试。';
   $('loading-text').style.opacity = '1';
   $('loading-text').textContent = '加载失败，请刷新重试。';
-});
+}
+
+if (archive.isRoute()) archive.direct();
+else { initialization = initialize(); initialization.catch(showLoadError); }

@@ -1,0 +1,31 @@
+@font-face {
+  font-family: 'Archive Noto Sans SC';
+  src: url('./assets/fonts/NotoSansSC.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+}
+body.archive-open { background: #f4f0e6; overflow: auto; }
+html:has(body.archive-open) { background: #f4f0e6; overflow: auto; }
+#archive {
+  position: absolute; inset: 0 auto auto 0; isolation: isolate;
+  background: #f4f0e6; color: #000; font-family: 'Archive Noto Sans SC', sans-serif;
+  font-synthesis: none; overflow: hidden;
+}
+.archive-grid { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.archive-title, .archive-caption { position: absolute; inset: 0; margin: 0; z-index: 2; pointer-events: none; }
+.archive-type { position: absolute; inset: 0; overflow: visible; width: 100%; height: 100%; }
+.archive-type text { fill: currentColor; letter-spacing: 0; }
+.archive-photo { position: absolute; z-index: 2; overflow: hidden; }
+.archive-photo img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 50%; }
+.archive-button {
+  position: absolute; z-index: 2; border: 0; padding: 0; margin: 0; background: none;
+  color: #000; outline: none; border-radius: 0; touch-action: manipulation;
+}
+.archive-button:focus-visible { color: #b63d3b !important; outline: none; }
+.archive-button:disabled { cursor: default; }
+.archive-button .archive-type { pointer-events: none; }
+.archive-cover, .archive-clone { position: fixed; pointer-events: none; }
+.archive-cover { z-index: 100; background: #f4f0e6; }
+.archive-clone { z-index: 101; overflow: hidden; }
+.archive-clone canvas { display: block; width: 100%; height: 100%; }

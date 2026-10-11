@@ -136,11 +136,11 @@ test('reset and every tile click are ignored until the complete reveal wave ends
   }
 });
 
-test('open side rivers reset the board while the open main river remains inactive', () => {
+test('open side rivers reset the board while the open main river enters the archive', () => {
   const tiles = makeTiles();
   assert.ok(tiles.every(tile => tileAction(tiles, tile) === 'reveal'));
   tiles.forEach(tile => tile.front = true);
-  assert.ok(tiles.slice(0, 18).every(tile => tileAction(tiles, tile) === null));
+  assert.ok(tiles.slice(0, 18).every(tile => tileAction(tiles, tile) === 'archive'));
   assert.ok(tiles.slice(18).every(tile => tileAction(tiles, tile) === 'reset'));
   const cycle = resetTiles(tiles, 0, poses(tiles, 0));
   assert.ok(tiles.every(tile => tileAction(tiles, tile) === null));
