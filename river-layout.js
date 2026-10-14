@@ -1,4 +1,4 @@
-import { SPEC, center } from './geometry.js?v=20261011-blank-fronts';
+import { SPEC, center } from './geometry.js?v=20261015-identity-03';
 import { CONTROL } from './physical-layout.js';
 
 // Rotate the main river around the full square control box, including the part

@@ -80,8 +80,8 @@ test('reset begins at the spatial top-left of all 54 tiles and directly closes e
   assert.ok(tiles.every(tile => !tile.front && !tile.flips.length));
 });
 
-test('each side tile originates a closing ripple at its own position', () => {
-  for (let originIndex = 18; originIndex < 54; originIndex++) {
+test('each tile in all three rivers originates a closing ripple at its own position', () => {
+  for (let originIndex = 0; originIndex < 54; originIndex++) {
     const tiles = makeTiles(); tiles.forEach(tile => tile.front = true);
     const cycle = resetTiles(tiles, 1000, poses(tiles, 1000), originIndex);
     assert.deepEqual(cycle, { origin: originIndex, end: 2200 });
@@ -136,12 +136,11 @@ test('reset and every tile click are ignored until the complete reveal wave ends
   }
 });
 
-test('open side rivers reset the board while the open main river remains inactive', () => {
+test('every open river resets the board and ignores further clicks while closing', () => {
   const tiles = makeTiles();
   assert.ok(tiles.every(tile => tileAction(tiles, tile) === 'reveal'));
   tiles.forEach(tile => tile.front = true);
-  assert.ok(tiles.slice(0, 18).every(tile => tileAction(tiles, tile) === null));
-  assert.ok(tiles.slice(18).every(tile => tileAction(tiles, tile) === 'reset'));
+  assert.ok(tiles.every(tile => tileAction(tiles, tile) === 'reset'));
   const cycle = resetTiles(tiles, 0, poses(tiles, 0));
   assert.ok(tiles.every(tile => tileAction(tiles, tile) === null));
   for (const tile of tiles) settleFlips(tile, cycle.end);

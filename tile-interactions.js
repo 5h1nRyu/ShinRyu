@@ -1,4 +1,4 @@
-import { SPEC } from './geometry.js?v=20261011-blank-fronts';
+import { SPEC } from './geometry.js?v=20261015-identity-03';
 
 export function topLeftTile(tiles) {
   return tiles.reduce((first, tile) => !first || tile.y < first.y || (tile.y === first.y && tile.x < first.x) ? tile : first, null);
@@ -15,7 +15,7 @@ export function waveInProgress(tiles) {
 
 export function tileAction(tiles, tile) {
   if (waveInProgress(tiles)) return null;
-  return tile.front ? (tile.side === 'main' ? null : 'reset') : 'reveal';
+  return tile.front ? 'reset' : 'reveal';
 }
 
 export function rippleDelays(tiles, origin) {
