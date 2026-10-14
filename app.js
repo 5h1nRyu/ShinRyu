@@ -11,17 +11,16 @@ import { SoundEffects, tileSoundEvents, stickSoundEvents } from './sound-effects
 const $ = (id) => document.getElementById(id);
 const sounds = new SoundEffects();
 void sounds.preload();
-const soundToggle = $('sound-toggle');
-function updateSoundToggle() {
-  soundToggle.disabled = !sounds.supported;
-  soundToggle.setAttribute('aria-pressed', String(sounds.enabled && sounds.supported));
-  soundToggle.setAttribute('aria-label', sounds.supported ? `音效已${sounds.enabled ? '开启，点击关闭' : '关闭，点击开启'}` : '当前浏览器不支持音效');
-  soundToggle.textContent = sounds.supported ? `音效 ${sounds.enabled ? '开' : '关'}` : '音效不可用';
+const soundControl = $('blue-light');
+function updateSoundControl() {
+  soundControl.disabled = !sounds.supported;
+  soundControl.setAttribute('aria-pressed', String(sounds.enabled && sounds.supported));
+  soundControl.setAttribute('aria-label', sounds.supported ? `音效，已${sounds.enabled ? '开启，点击关闭' : '关闭，点击开启'}` : '音效，当前浏览器不支持');
 }
-updateSoundToggle();
-soundToggle.addEventListener('click', () => {
+updateSoundControl();
+soundControl.addEventListener('click', () => {
   sounds.setEnabled(!sounds.enabled);
-  updateSoundToggle();
+  updateSoundControl();
   if (sounds.enabled) sounds.button();
 });
 window.addEventListener('pointerdown', event => {
@@ -42,7 +41,7 @@ let raf = 0, pixelScale = 1, orderCounter = 0;
 let mahjong, consoleImage;
 const riichiImages = new Map();
 const sideFragments = new Map();
-const CONTROL_HINTS = { dealer: 'github', streak: 'bilibili', reset: '重置', 'blue-light': '探索' };
+const CONTROL_HINTS = { dealer: 'github', streak: 'bilibili', reset: '重置', 'blue-light': '音效' };
 let hoveredControl = null, focusedControl = null;
 let stickDrop = null, stickEpoch = 0, restingStick = REST_STICK;
 const mainTiles = Array.from({ length: 18 }, (_, index) => ({
