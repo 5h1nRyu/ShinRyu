@@ -6,8 +6,30 @@ import { RIICHI_FACES, sideRiverFaces } from './riichi-faces.js?v=20261015-ident
 import { sideRiverCenters } from './river-layout.js?v=20261015-identity-03';
 import { drawTableSeams, tableLayout } from './table-surface.js?v=20261015-identity-03';
 import { CONTROL } from './physical-layout.js';
+import { SoundEffects, tileSoundEvents, stickSoundEvents } from './sound-effects.js?v=20261015-audio-01';
 
 const $ = (id) => document.getElementById(id);
+const sounds = new SoundEffects();
+void sounds.preload();
+const soundToggle = $('sound-toggle');
+function updateSoundToggle() {
+  soundToggle.disabled = !sounds.supported;
+  soundToggle.setAttribute('aria-pressed', String(sounds.enabled && sounds.supported));
+  soundToggle.setAttribute('aria-label', sounds.supported ? `音效已${sounds.enabled ? '开启，点击关闭' : '关闭，点击开启'}` : '当前浏览器不支持音效');
+  soundToggle.textContent = sounds.supported ? `音效 ${sounds.enabled ? '开' : '关'}` : '音效不可用';
+}
+updateSoundToggle();
+soundToggle.addEventListener('click', () => {
+  sounds.setEnabled(!sounds.enabled);
+  updateSoundToggle();
+  if (sounds.enabled) sounds.button();
+});
+window.addEventListener('pointerdown', event => {
+  if (event.button === 0) void sounds.unlock();
+}, { capture: true, passive: true });
+window.addEventListener('keydown', event => {
+  if (event.key === 'Enter' || event.key === ' ') void sounds.unlock();
+}, { capture: true });
 const scene = $('scene'), board = $('board'), canvas = $('table');
 scene.style.setProperty('--console-scale', String(CONTROL.scale));
 scene.style.setProperty('--console-left', `${CONTROL.left}px`);
@@ -262,6 +284,7 @@ function startReveal(tile) {
   const time = performance.now();
   for (const candidate of tiles) settleFlips(candidate, time);
   if (!revealTiles(tiles, tile.index, time, tiles.map(candidate => poseAt(candidate, time)))) return;
+  sounds.schedule(tileSoundEvents(tiles));
   for (const candidate of tiles) updateTileLabel(candidate);
   board.setAttribute('aria-busy', 'true');
   $('status').textContent = `正在以${tilePositionLabel(tile)}为中心波纹翻开三处牌河。`;
@@ -278,6 +301,7 @@ function startReset(originTile = null) {
   const origin = originTile ?? topLeftTile(tiles);
   resetCycle = resetTiles(tiles, time, tiles.map((tile) => poseAt(tile, time)), origin.index);
   if (!resetCycle) return;
+  sounds.schedule(tileSoundEvents(tiles));
   hovered = null; pressed = null; phase = 'reset-conceal';
   for (const tile of tiles) updateTileLabel(tile);
   $('reset').disabled = true; board.setAttribute('aria-busy', 'true');
@@ -379,10 +403,12 @@ for (const id of Object.keys(CONTROL_HINTS)) {
   });
 }
 
-$('reset').addEventListener('click', () => startReset());
+$('reset').addEventListener('click', () => { sounds.button(true); startReset(); });
+for (const id of ['dealer', 'streak']) $(id).addEventListener('click', () => sounds.button());
 $('score-stick').addEventListener('click', () => {
   if (!mahjong || phase === 'loading' || phase === 'loading-fade' || phase === 'entry' || stickDrop) return;
   stickDrop = createStickDrop(Math.random, restingStick); stickEpoch = performance.now();
+  sounds.schedule(stickSoundEvents(stickDrop, stickEpoch));
   $('score-stick').setAttribute('aria-busy', 'true');
   $('score-stick').dataset.motion = 'lifting';
   $('stick-status').textContent = '拿起点棒，倾斜松手后掉落。';
@@ -392,7 +418,11 @@ window.addEventListener('pointerup', () => {
   if (pressed !== null) { const tile = tiles[pressed]; pressed = null; tweenTo(tile, hovered === tile.index ? 1.04 : 1, 180); }
 });
 window.addEventListener('resize', resize);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) requestRender(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) sounds.cancel();
+  else requestRender();
+});
+window.addEventListener('pagehide', () => sounds.cancel());
 
 async function initialize() {
   createHitTargets();
